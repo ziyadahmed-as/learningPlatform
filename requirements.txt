@@ -1,0 +1,11 @@
+Django>=5.0.0
+djangorestframework
+djangorestframework-simplejwt
+corsheaders
+drf-spectacular
+celery
+redis
+psycopg2-binary
+gunicorn
+stripe
+dj-database-url
