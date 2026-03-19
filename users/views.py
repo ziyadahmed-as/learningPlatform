@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer, AdminUserSerializer
 from rest_framework import viewsets
 
 User = get_user_model()
@@ -23,7 +23,7 @@ class IsAdminUserRole(permissions.BasePermission):
     Allows access only to users with the ADMIN role.
     """
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.role == 'ADMIN')
+        return bool(request.user and request.user.is_authenticated and (request.user.role == 'ADMIN' or request.user.is_superuser))
 
 class AdminUserViewSet(viewsets.ModelViewSet):
     """

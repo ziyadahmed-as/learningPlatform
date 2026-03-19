@@ -11,5 +11,18 @@ class User(AbstractUser):
     bio = models.TextField(blank=True, null=True)
     profile_picture = models.URLField(blank=True, null=True)
 
+    def save(self, *args, **kwargs):
+        # Ensure superusers are always recognized as ADMIN role in the frontend
+        if self.is_superuser:
+            self.role = self.Role.ADMIN
+        
+        # Admins and Instructors get staff access to the Django admin panel
+        if self.role in [self.Role.ADMIN, self.Role.INSTRUCTOR]:
+            self.is_staff = True
+        else:
+            self.is_staff = False
+            
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.username
