@@ -6,6 +6,7 @@ from .models import Category, Course, Module, Lesson
 
 User = get_user_model()
 
+
 class CourseAPITestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -19,22 +20,42 @@ class CourseAPITestCase(TestCase):
             password='password123',
             role='STUDENT'
         )
+        self.admin = User.objects.create_user(
+            username='admin_test',
+            password='password123',
+            role='ADMIN'
+        )
         self.category = Category.objects.create(name='Programming', slug='programming')
+        # Approved course visible to students
         self.course = Course.objects.create(
             title='Django REST Framework',
             slug='django-rest-framework',
             description='Learn DRF from scratch',
             instructor=self.instructor,
             category=self.category,
-            price=49.99
+            price=49.99,
+            is_published=True,
+            is_approved=True,  # Approved so students can see and enroll
         )
         self.module = Module.objects.create(course=self.course, title='Introduction', order=1)
         self.lesson = Lesson.objects.create(module=self.module, title='Setup', content='Install Django and DRF', order=1)
 
     def test_get_courses_list(self):
-        """Ensure anyone can get the list of courses"""
-        response = self.client.get('/api/courses/')
+        """Students/anonymous only see approved courses"""
+        # Create an unapproved course to confirm it's hidden
+        Course.objects.create(
+            title='Hidden Course',
+            slug='hidden-course',
+            description='Not approved',
+            instructor=self.instructor,
+            category=self.category,
+            price=0,
+            is_published=True,
+            is_approved=False,
+        )
+        response = self.client.get('/api/courses/courses/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Only the approved setUp course should appear
         self.assertEqual(len(response.data), 1)
 
     def test_create_course_instructor(self):
@@ -47,7 +68,7 @@ class CourseAPITestCase(TestCase):
             'category': self.category.id,
             'price': 19.99
         }
-        response = self.client.post('/api/courses/', data)
+        response = self.client.post('/api/courses/courses/', data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Course.objects.count(), 2)
 
@@ -60,28 +81,71 @@ class CourseAPITestCase(TestCase):
             'description': 'Vue basics course',
             'category': self.category.id
         }
-        response = self.client.post('/api/courses/', data)
+        response = self.client.post('/api/courses/courses/', data)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_admin_can_create_course(self):
         """Ensure admins can create courses"""
-        admin = User.objects.create_user(
-            username='admin_tester',
-            password='password123',
-            role='ADMIN'
-        )
-        self.client.force_authenticate(user=admin)
+        self.client.force_authenticate(user=self.admin)
         data = {
             'title': 'Admin course',
             'slug': 'admin-course',
             'description': 'Admin course',
             'category': self.category.id
         }
-        response = self.client.post('/api/courses/', data)
+        response = self.client.post('/api/courses/courses/', data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_admin_can_approve_course(self):
+        """Ensure admins can approve a course"""
+        unapproved = Course.objects.create(
+            title='Pending Course',
+            slug='pending-course',
+            description='Awaiting approval',
+            instructor=self.instructor,
+            category=self.category,
+            price=0,
+            is_published=True,
+            is_approved=False,
+        )
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(f'/api/courses/courses/{unapproved.id}/approve/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        unapproved.refresh_from_db()
+        self.assertTrue(unapproved.is_approved)
+
+    def test_instructor_cannot_approve_course(self):
+        """Ensure instructors cannot approve courses"""
+        unapproved = Course.objects.create(
+            title='Pending Course 2',
+            slug='pending-course-2',
+            description='Awaiting approval',
+            instructor=self.instructor,
+            category=self.category,
+            price=0,
+            is_published=True,
+            is_approved=False,
+        )
+        self.client.force_authenticate(user=self.instructor)
+        response = self.client.post(f'/api/courses/courses/{unapproved.id}/approve/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_create_category(self):
+        """Ensure admins can create categories"""
+        self.client.force_authenticate(user=self.admin)
+        data = {'name': 'Data Science', 'slug': 'data-science'}
+        response = self.client.post('/api/courses/categories/', data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_instructor_cannot_create_category(self):
+        """Ensure instructors cannot create categories (admin-only)"""
+        self.client.force_authenticate(user=self.instructor)
+        data = {'name': 'AI', 'slug': 'ai'}
+        response = self.client.post('/api/courses/categories/', data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_student_enroll_free_course(self):
-        """Student enrolls in a free course"""
+        """Student enrolls in a free approved course"""
         self.client.force_authenticate(user=self.student)
         free_course = Course.objects.create(
             title='Free Course',
@@ -89,24 +153,40 @@ class CourseAPITestCase(TestCase):
             description='A free DRF course',
             instructor=self.instructor,
             category=self.category,
-            price=0.00
+            price=0.00,
+            is_published=True,
+            is_approved=True,
         )
-        response = self.client.post(f'/api/courses/{free_course.id}/enroll/')
+        response = self.client.post(f'/api/courses/courses/{free_course.id}/enroll/')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(response.data['is_paid'])
 
     def test_student_enroll_paid_course(self):
         """Student enrolls in a paid course, is_paid is False initially"""
         self.client.force_authenticate(user=self.student)
-        response = self.client.post(f'/api/courses/{self.course.id}/enroll/')
+        response = self.client.post(f'/api/courses/courses/{self.course.id}/enroll/')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertFalse(response.data['is_paid'])
 
     def test_student_cannot_enroll_twice(self):
         """Ensure duplicate enrollments return 400 bad request"""
         self.client.force_authenticate(user=self.student)
-        # first enroll
-        self.client.post(f'/api/courses/{self.course.id}/enroll/')
-        # second enroll
-        response2 = self.client.post(f'/api/courses/{self.course.id}/enroll/')
+        self.client.post(f'/api/courses/courses/{self.course.id}/enroll/')
+        response2 = self.client.post(f'/api/courses/courses/{self.course.id}/enroll/')
         self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unapproved_course_hidden_from_students(self):
+        """Unapproved courses must not be accessible to students"""
+        unapproved = Course.objects.create(
+            title='Private Course',
+            slug='private-course',
+            description='Not yet approved',
+            instructor=self.instructor,
+            category=self.category,
+            price=0,
+            is_published=True,
+            is_approved=False,
+        )
+        self.client.force_authenticate(user=self.student)
+        response = self.client.get(f'/api/courses/courses/{unapproved.id}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

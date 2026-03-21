@@ -36,7 +36,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 class AdminUserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
 
     class Meta:
         model = User
@@ -44,6 +44,14 @@ class AdminUserSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
 
     def create(self, validated_data):
-        password = validated_data.pop('password')
+        password = validated_data.pop('password', None)
+        if not password:
+            raise serializers.ValidationError({"password": "This field is required for creation."})
         user = User.objects.create_user(password=password, **validated_data)
         return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+        return super().update(instance, validated_data)

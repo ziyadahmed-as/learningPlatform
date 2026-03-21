@@ -30,6 +30,6 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     A viewset for viewing and editing user instances (Instructors, Students).
     Accessible only by ADMIN users.
     """
-    serializer_class = UserSerializer
+    serializer_class = AdminUserSerializer
     queryset = User.objects.all()
     permission_classes = [IsAdminUserRole]

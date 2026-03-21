@@ -1,3 +1,12 @@
 from django.contrib import admin
+from .models import Category, Course, Module, Lesson, Enrollment, Payment, LessonImage, LessonFile, LessonProgress
 
-# Register your models here.
+admin.site.register(Category)
+admin.site.register(Course)
+admin.site.register(Module)
+admin.site.register(Lesson)
+admin.site.register(Enrollment)
+admin.site.register(Payment)
+admin.site.register(LessonImage)
+admin.site.register(LessonFile)
+admin.site.register(LessonProgress)

@@ -169,3 +169,7 @@ STRIPE_PUBLIC_KEY = 'pk_test_dummy'
 STRIPE_SECRET_KEY = 'sk_test_dummy'
 STRIPE_WEBHOOK_SECRET = 'whsec_dummy'
 FRONTEND_URL = 'http://localhost:3000'
+
+# Media Files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
