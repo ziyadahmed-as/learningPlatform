@@ -3,7 +3,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from .models import (
     Category, Course, Module, Lesson, Enrollment, Payment, 
-    LessonImage, LessonFile, LessonProgress
+    LessonImage, LessonFile, LessonProgress, CourseView
 )
 from .serializers import (
     CategorySerializer, CourseSerializer, ModuleSerializer, 
@@ -12,6 +12,9 @@ from .serializers import (
 )
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from django.db.models import Sum, Count
+from datetime import timedelta
 import stripe
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -109,6 +112,89 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         enrollment = Enrollment.objects.create(student=user, course=course, is_paid=is_paid)
         return Response({'detail': 'Successfully enrolled', 'is_paid': is_paid}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.AllowAny])
+    def record_view(self, request, pk=None):
+        """Record a view for this course. Deduplicates by user/IP within 24h."""
+        course = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        ip = request.META.get('REMOTE_ADDR')
+        cutoff = timezone.now() - timedelta(hours=24)
+
+        # Check for recent view by same user or IP
+        recent = CourseView.objects.filter(course=course, viewed_at__gte=cutoff)
+        if user:
+            recent = recent.filter(user=user)
+        elif ip:
+            recent = recent.filter(ip_address=ip, user__isnull=True)
+        else:
+            recent = recent.none()
+
+        if not recent.exists():
+            CourseView.objects.create(course=course, user=user, ip_address=ip)
+            course.views_count += 1
+            course.save(update_fields=['views_count'])
+
+        return Response({'views_count': course.views_count})
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def instructor_stats(self, request):
+        """Return aggregated stats for the logged-in instructor's courses."""
+        user = request.user
+        if user.role not in ['INSTRUCTOR', 'ADMIN'] and not user.is_superuser:
+            return Response({'detail': 'Only instructors can view stats.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if user.role == 'INSTRUCTOR':
+            courses = Course.objects.filter(instructor=user)
+        else:
+            courses = Course.objects.all()
+
+        total = courses.count()
+        published = courses.filter(is_published=True).count()
+        approved = courses.filter(is_approved=True).count()
+        pending = courses.filter(is_published=True, is_approved=False).count()
+        drafts = courses.filter(is_published=False).count()
+
+        total_enrollments = Enrollment.objects.filter(course__in=courses).count()
+        total_views = courses.aggregate(total=Sum('views_count'))['total'] or 0
+
+        # Per-course breakdown
+        course_stats = []
+        for c in courses.prefetch_related('enrollments', 'modules__lessons'):
+            enrollment_count = c.enrollments.count()
+            lesson_count = Lesson.objects.filter(module__course=c).count()
+            completed_count = LessonProgress.objects.filter(
+                lesson__module__course=c, is_completed=True
+            ).count()
+            if lesson_count > 0 and enrollment_count > 0:
+                completion_pct = round((completed_count / (enrollment_count * lesson_count)) * 100, 1)
+            else:
+                completion_pct = 0
+
+            course_stats.append({
+                'id': c.id,
+                'title': c.title,
+                'slug': c.slug,
+                'is_published': c.is_published,
+                'is_approved': c.is_approved,
+                'price': str(c.price),
+                'enrollment_count': enrollment_count,
+                'views_count': c.views_count,
+                'completion_percentage': completion_pct,
+                'lesson_count': lesson_count,
+                'module_count': c.modules.count(),
+            })
+
+        return Response({
+            'total_courses': total,
+            'published': published,
+            'approved': approved,
+            'pending': pending,
+            'drafts': drafts,
+            'total_enrollments': total_enrollments,
+            'total_views': total_views,
+            'courses': course_stats,
+        })
 
 
 class ModuleViewSet(viewsets.ModelViewSet):

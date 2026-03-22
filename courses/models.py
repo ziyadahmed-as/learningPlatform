@@ -22,6 +22,7 @@ class Course(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_published = models.BooleanField(default=False)
     is_approved = models.BooleanField(default=False)
+    views_count = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return self.title
@@ -105,3 +106,15 @@ class LessonProgress(models.Model):
 
     def __str__(self):
         return f'{self.student.username} - {self.lesson.title} - {"Completed" if self.is_completed else "In Progress"}'
+
+class CourseView(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='course_views')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-viewed_at']
+
+    def __str__(self):
+        return f'View on {self.course.title} at {self.viewed_at}'

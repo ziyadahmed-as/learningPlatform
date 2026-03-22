@@ -42,21 +42,42 @@ class CourseSerializer(serializers.ModelSerializer):
     modules = ModuleSerializer(many=True, read_only=True)
     instructor_name = serializers.ReadOnlyField(source='instructor.username')
     is_enrolled = serializers.SerializerMethodField()
+    enrollment_count = serializers.SerializerMethodField()
+    completion_percentage = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = [
             'id', 'title', 'slug', 'description', 'price', 
             'instructor', 'instructor_name', 'category', 
-            'created_at', 'updated_at', 'is_published', 'is_approved', 'modules', 'is_enrolled'
+            'created_at', 'updated_at', 'is_published', 'is_approved',
+            'views_count', 'modules', 'is_enrolled',
+            'enrollment_count', 'completion_percentage',
         ]
-        read_only_fields = ['instructor', 'is_approved']  # is_approved is set via the approve action
+        read_only_fields = ['instructor', 'is_approved', 'views_count']
 
     def get_is_enrolled(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return Enrollment.objects.filter(student=request.user, course=obj).exists()
         return False
+
+    def get_enrollment_count(self, obj):
+        return obj.enrollments.count()
+
+    def get_completion_percentage(self, obj):
+        """Average completion % across all enrolled students."""
+        total_lessons = Lesson.objects.filter(module__course=obj).count()
+        if total_lessons == 0:
+            return 0
+        enrollment_count = obj.enrollments.count()
+        if enrollment_count == 0:
+            return 0
+        completed = LessonProgress.objects.filter(
+            lesson__module__course=obj, is_completed=True
+        ).count()
+        # Average: total completed lessons / (total students × total lessons) × 100
+        return round((completed / (enrollment_count * total_lessons)) * 100, 1)
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -72,3 +93,4 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         model = Enrollment
         fields = ['id', 'course', 'course_title', 'enrolled_at', 'is_paid', 'payment']
         read_only_fields = ['is_paid', 'student']
+
