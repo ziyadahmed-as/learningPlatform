@@ -9,12 +9,12 @@ class CategorySerializer(serializers.ModelSerializer):
 class LessonImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = LessonImage
-        fields = ['id', 'image', 'caption', 'order']
+        fields = ['id', 'lesson', 'image', 'caption', 'order']
 
 class LessonFileSerializer(serializers.ModelSerializer):
     class Meta:
         model = LessonFile
-        fields = ['id', 'file', 'title', 'order']
+        fields = ['id', 'lesson', 'file', 'title', 'order']
 
 class LessonSerializer(serializers.ModelSerializer):
     images = LessonImageSerializer(many=True, read_only=True)
@@ -23,7 +23,7 @@ class LessonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lesson
-        fields = ['id', 'title', 'content', 'video_url', 'order', 'images', 'files', 'is_completed']
+        fields = ['id', 'course', 'title', 'content', 'video_url', 'order', 'images', 'files', 'is_completed']
 
     def get_is_completed(self, obj):
         request = self.context.get('request')
