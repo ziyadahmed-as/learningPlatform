@@ -2,12 +2,12 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from .models import (
-    Category, Course, Lesson, Enrollment, Payment, 
+    Category, Course, Chapter, Lesson, ContentBlock, Enrollment, Payment, 
     LessonImage, LessonFile, LessonProgress, CourseView
 )
 from .serializers import (
-    CategorySerializer, CourseSerializer,
-    LessonSerializer, EnrollmentSerializer, 
+    CategorySerializer, CourseSerializer, ChapterSerializer,
+    LessonSerializer, ContentBlockSerializer, EnrollmentSerializer, 
     LessonImageSerializer, LessonFileSerializer
 )
 from django.conf import settings
@@ -43,13 +43,14 @@ class IsAdminOrInstructorOrReadOnly(permissions.BasePermission):
             return True
         if is_admin(request.user):
             return True
-        # Ensure only the course instructor can modify it
         if hasattr(obj, 'instructor'):
             return obj.instructor == request.user
-        if hasattr(obj, 'course'):
+        if hasattr(obj, 'course'): # Chapters, Enrollments
             return obj.course.instructor == request.user
-        if hasattr(obj, 'lesson'):
-            return obj.lesson.course.instructor == request.user
+        if hasattr(obj, 'chapter'): # Lessons
+            return obj.chapter.course.instructor == request.user
+        if hasattr(obj, 'lesson'): # ContentBlock, LessonImage, LessonFile
+            return obj.lesson.chapter.course.instructor == request.user
         return False
 
 
@@ -71,9 +72,9 @@ class CourseViewSet(viewsets.ModelViewSet):
         user = self.request.user
         # Admins and instructors can see all courses (including unapproved)
         if user.is_authenticated and (is_admin(user) or user.role == 'INSTRUCTOR'):
-            return Course.objects.all().select_related('instructor', 'category').prefetch_related('lessons')
+            return Course.objects.all().select_related('instructor', 'category').prefetch_related('chapters__lessons')
         # Students and anonymous users only see approved courses
-        return Course.objects.filter(is_approved=True).select_related('instructor', 'category').prefetch_related('lessons')
+        return Course.objects.filter(is_approved=True).select_related('instructor', 'category').prefetch_related('chapters__lessons')
 
     def perform_create(self, serializer):
         serializer.save(instructor=self.request.user)
@@ -160,11 +161,11 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         # Per-course breakdown
         course_stats = []
-        for c in courses.prefetch_related('enrollments', 'lessons'):
+        for c in courses.prefetch_related('enrollments'):
             enrollment_count = c.enrollments.count()
-            lesson_count = Lesson.objects.filter(course=c).count()
+            lesson_count = Lesson.objects.filter(chapter__course=c).count()
             completed_count = LessonProgress.objects.filter(
-                lesson__course=c, is_completed=True
+                lesson__chapter__course=c, is_completed=True
             ).count()
             if lesson_count > 0 and enrollment_count > 0:
                 completion_pct = round((completed_count / (enrollment_count * lesson_count)) * 100, 1)
@@ -196,10 +197,25 @@ class CourseViewSet(viewsets.ModelViewSet):
         })
 
 
+class ChapterViewSet(viewsets.ModelViewSet):
+    queryset = Chapter.objects.all()
+    serializer_class = ChapterSerializer
+    permission_classes = [IsAdminOrInstructorOrReadOnly]
+
+
+class ContentBlockViewSet(viewsets.ModelViewSet):
+    queryset = ContentBlock.objects.all()
+    serializer_class = ContentBlockSerializer
+    permission_classes = [IsAdminOrInstructorOrReadOnly]
+
+
 class LessonViewSet(viewsets.ModelViewSet):
-    queryset = Lesson.objects.all().select_related('course')
     serializer_class = LessonSerializer
     permission_classes = [IsAdminOrInstructorOrReadOnly]
+    queryset = Lesson.objects.all()
+
+    def get_queryset(self):
+        return Lesson.objects.all().select_related('chapter__course').prefetch_related('images', 'files', 'content_blocks')
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def mark_completed(self, request, pk=None):
@@ -207,12 +223,12 @@ class LessonViewSet(viewsets.ModelViewSet):
         user = request.user
 
         # Check if student is enrolled
-        course = lesson.course
+        course = lesson.chapter.course
         if not Enrollment.objects.filter(student=user, course=course).exists():
             return Response({'detail': 'You must be enrolled in this course.'}, status=status.HTTP_403_FORBIDDEN)
 
         # Sequential progression logic
-        all_lessons = Lesson.objects.filter(course=course).order_by('order')
+        all_lessons = Lesson.objects.filter(chapter__course=course).order_by('chapter__order', 'order')
         lesson_ids = list(all_lessons.values_list('id', flat=True))
         try:
             current_index = lesson_ids.index(lesson.id)

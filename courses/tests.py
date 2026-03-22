@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from .models import Category, Course, Lesson
+from .models import Category, Course, Chapter, Lesson
 
 User = get_user_model()
 
@@ -37,7 +37,8 @@ class CourseAPITestCase(TestCase):
             is_published=True,
             is_approved=True,  # Approved so students can see and enroll
         )
-        self.lesson = Lesson.objects.create(course=self.course, title='Setup', content='Install Django and DRF', order=1)
+        self.chapter = Chapter.objects.create(course=self.course, title='Getting Started', order=1)
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Setup', content='Install Django and DRF', order=1)
 
     def test_get_courses_list(self):
         """Students/anonymous only see approved courses"""

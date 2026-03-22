@@ -1,10 +1,15 @@
 from rest_framework import serializers
-from .models import Category, Course, Lesson, Enrollment, Payment, LessonImage, LessonFile, LessonProgress
+from .models import Category, Course, Chapter, Lesson, ContentBlock, Enrollment, Payment, LessonImage, LessonFile, LessonProgress
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug']
+
+class ContentBlockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentBlock
+        fields = ['id', 'lesson', 'title', 'content', 'order']
 
 class LessonImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,11 +24,12 @@ class LessonFileSerializer(serializers.ModelSerializer):
 class LessonSerializer(serializers.ModelSerializer):
     images = LessonImageSerializer(many=True, read_only=True)
     files = LessonFileSerializer(many=True, read_only=True)
+    content_blocks = ContentBlockSerializer(many=True, read_only=True)
     is_completed = serializers.SerializerMethodField()
 
     class Meta:
         model = Lesson
-        fields = ['id', 'course', 'title', 'content', 'video_url', 'order', 'images', 'files', 'is_completed']
+        fields = ['id', 'chapter', 'title', 'content', 'video_url', 'order', 'images', 'files', 'content_blocks', 'is_completed']
 
     def get_is_completed(self, obj):
         request = self.context.get('request')
@@ -33,8 +39,16 @@ class LessonSerializer(serializers.ModelSerializer):
 
 
 
-class CourseSerializer(serializers.ModelSerializer):
+class ChapterSerializer(serializers.ModelSerializer):
     lessons = LessonSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Chapter
+        fields = ['id', 'course', 'title', 'order', 'lessons']
+
+
+class CourseSerializer(serializers.ModelSerializer):
+    chapters = ChapterSerializer(many=True, read_only=True)
     instructor_name = serializers.ReadOnlyField(source='instructor.username')
     is_enrolled = serializers.SerializerMethodField()
     enrollment_count = serializers.SerializerMethodField()
@@ -46,7 +60,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'description', 'price', 
             'instructor', 'instructor_name', 'category', 
             'created_at', 'updated_at', 'is_published', 'is_approved',
-            'views_count', 'lessons', 'is_enrolled',
+            'views_count', 'chapters', 'is_enrolled',
             'enrollment_count', 'completion_percentage',
         ]
         read_only_fields = ['instructor', 'is_approved', 'views_count']
@@ -62,7 +76,7 @@ class CourseSerializer(serializers.ModelSerializer):
 
     def get_completion_percentage(self, obj):
         """Average completion % across all enrolled students."""
-        total_lessons = Lesson.objects.filter(course=obj).count()
+        total_lessons = Lesson.objects.filter(chapter__course=obj).count()
         if total_lessons == 0:
             return 0
         enrollment_count = obj.enrollments.count()
