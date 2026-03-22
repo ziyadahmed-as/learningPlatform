@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
-from .models import Category, Course, Module, Lesson
+from .models import Category, Course, Lesson
 
 User = get_user_model()
 
@@ -37,8 +37,7 @@ class CourseAPITestCase(TestCase):
             is_published=True,
             is_approved=True,  # Approved so students can see and enroll
         )
-        self.module = Module.objects.create(course=self.course, title='Introduction', order=1)
-        self.lesson = Lesson.objects.create(module=self.module, title='Setup', content='Install Django and DRF', order=1)
+        self.lesson = Lesson.objects.create(course=self.course, title='Setup', content='Install Django and DRF', order=1)
 
     def test_get_courses_list(self):
         """Students/anonymous only see approved courses"""
@@ -190,3 +189,51 @@ class CourseAPITestCase(TestCase):
         self.client.force_authenticate(user=self.student)
         response = self.client.get(f'/api/courses/courses/{unapproved.id}/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_record_view(self):
+        """Ensure record_view increments view count and deduplicates"""
+        # First view
+        response = self.client.post(f'/api/courses/courses/{self.course.id}/record_view/', REMOTE_ADDR='127.0.0.1')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['views_count'], 1)
+        
+        # Second view from same IP (unauthenticated) within 24h should not increment
+        response2 = self.client.post(f'/api/courses/courses/{self.course.id}/record_view/', REMOTE_ADDR='127.0.0.1')
+        self.assertEqual(response2.data['views_count'], 1)
+        
+        # View from different user
+        self.client.force_authenticate(user=self.student)
+        response3 = self.client.post(f'/api/courses/courses/{self.course.id}/record_view/', REMOTE_ADDR='127.0.0.1')
+        self.assertEqual(response3.data['views_count'], 2)
+
+    def test_instructor_stats(self):
+        """Ensure instructor_stats returns accurate aggregated data"""
+        from .models import Enrollment, LessonProgress
+        
+        # Create an enrollment
+        Enrollment.objects.create(student=self.student, course=self.course, is_paid=True)
+        # Mark lesson completed
+        LessonProgress.objects.create(student=self.student, lesson=self.lesson, is_completed=True)
+        # Record a view
+        self.client.post(f'/api/courses/courses/{self.course.id}/record_view/', REMOTE_ADDR='127.0.0.1')
+        
+        self.client.force_authenticate(user=self.instructor)
+        response = self.client.get('/api/courses/courses/instructor_stats/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        data = response.data
+        self.assertEqual(data['total_courses'], 1)
+        self.assertEqual(data['total_enrollments'], 1)
+        self.assertEqual(data['total_views'], 1)
+        
+        course_stat = data['courses'][0]
+        self.assertEqual(course_stat['id'], self.course.id)
+        self.assertEqual(course_stat['enrollment_count'], 1)
+        self.assertEqual(course_stat['views_count'], 1)
+        self.assertEqual(course_stat['completion_percentage'], 100.0)
+
+    def test_instructor_stats_forbidden_for_students(self):
+        """Ensure students cannot access instructor stats"""
+        self.client.force_authenticate(user=self.student)
+        response = self.client.get('/api/courses/courses/instructor_stats/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
