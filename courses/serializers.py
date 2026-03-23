@@ -9,7 +9,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class ContentBlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentBlock
-        fields = ['id', 'lesson', 'title', 'content', 'order']
+        fields = ['id', 'lesson', 'title', 'content', 'image', 'pdf_file', 'video_url', 'video_file', 'order']
 
 class LessonImageSerializer(serializers.ModelSerializer):
     class Meta:

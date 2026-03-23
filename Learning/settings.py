@@ -11,6 +11,11 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,10 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-j=s#$n#g6gdxys#c6@#!i@teyu3e2tme34t-dvxo)+(x_1w67='
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-j=s#$n#g6gdxys#c6@#!i@teyu3e2tme34t-dvxo)+(x_1w67=')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = []
 
@@ -81,14 +86,13 @@ WSGI_APPLICATION = 'Learning.wsgi.application'
 
 
 import dj_database_url
-import os
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
+        default=os.environ.get('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/fatraa'),
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -158,17 +162,17 @@ SIMPLE_JWT = {
 CORS_ALLOW_ALL_ORIGINS = True
 
 # Celery
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
 # Stripe Setup
-STRIPE_PUBLIC_KEY = 'pk_test_dummy'
-STRIPE_SECRET_KEY = 'sk_test_dummy'
-STRIPE_WEBHOOK_SECRET = 'whsec_dummy'
-FRONTEND_URL = 'http://localhost:3000'
+STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY', 'pk_test_dummy')
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', 'sk_test_dummy')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', 'whsec_dummy')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
 # Media Files
 MEDIA_URL = '/media/'

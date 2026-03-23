@@ -61,6 +61,10 @@ class ContentBlock(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks')
     title = models.CharField(max_length=200, blank=True)
     content = models.TextField()
+    image = models.ImageField(upload_to='content_blocks/images/', blank=True, null=True)
+    pdf_file = models.FileField(upload_to='content_blocks/pdfs/', blank=True, null=True)
+    video_url = models.URLField(blank=True, null=True)
+    video_file = models.FileField(upload_to='content_blocks/videos/', blank=True, null=True)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
