@@ -83,7 +83,7 @@ class CourseSerializer(serializers.ModelSerializer):
         if enrollment_count == 0:
             return 0
         completed = LessonProgress.objects.filter(
-            lesson__course=obj, is_completed=True
+            lesson__chapter__course=obj, is_completed=True
         ).count()
         # Average: total completed lessons / (total students × total lessons) × 100
         return round((completed / (enrollment_count * total_lessons)) * 100, 1)
