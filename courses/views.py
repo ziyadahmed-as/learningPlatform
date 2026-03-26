@@ -3,12 +3,14 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from .models import (
     Category, Course, Chapter, Lesson, ContentBlock, Enrollment, Payment, 
-    LessonImage, LessonFile, LessonProgress, CourseView
+    LessonImage, LessonFile, LessonProgress, CourseView, Review, Wallet, 
+    Transaction, WithdrawalRequest
 )
 from .serializers import (
     CategorySerializer, CourseSerializer, ChapterSerializer,
     LessonSerializer, ContentBlockSerializer, EnrollmentSerializer, 
-    LessonImageSerializer, LessonFileSerializer
+    LessonImageSerializer, LessonFileSerializer, ReviewSerializer,
+    WalletSerializer, TransactionSerializer, WithdrawalRequestSerializer
 )
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
@@ -16,6 +18,7 @@ from django.utils import timezone
 from django.db.models import Sum, Count
 from datetime import timedelta
 import stripe
+import decimal
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -98,6 +101,16 @@ class CourseViewSet(viewsets.ModelViewSet):
         course.is_approved = False
         course.save()
         return Response({'detail': f'Course "{course.title}" approval has been revoked.'})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def submit_for_approval(self, request, pk=None):
+        """Instructor action to submit course for admin review."""
+        course = self.get_object()
+        if course.instructor != request.user and not is_admin(request.user):
+            return Response({'detail': 'You do not have permission to submit this course.'}, status=status.HTTP_403_FORBIDDEN)
+        course.is_submitted = True
+        course.save()
+        return Response({'detail': f'Course "{course.title}" has been submitted for approval.'})
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def enroll(self, request, pk=None):
@@ -328,7 +341,96 @@ def stripe_webhook(request):
                 enrollment = payment.enrollment
                 enrollment.is_paid = True
                 enrollment.save()
+
+                # Handle Instructor Earnings
+                course = enrollment.course
+                instructor = course.instructor
+                amount = payment.amount
+                
+                # Platform takes 20% commission
+                commission_rate = 0.20
+                commission = amount * decimal.Decimal(commission_rate)
+                earnings = amount - commission
+
+                wallet, created = Wallet.objects.get_or_create(user=instructor)
+                wallet.balance += earnings
+                wallet.total_earned += earnings
+                wallet.save()
+
+                Transaction.objects.create(
+                    wallet=wallet,
+                    amount=earnings,
+                    course=course,
+                    transaction_type='SALE'
+                )
             except Payment.DoesNotExist:
                 pass
+            except Exception as e:
+                # Log error in production
+                print(f"Error processing payment earnings: {e}")
 
     return Response(status=status.HTTP_200_OK)
+
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(student=self.request.user)
+
+
+class WalletViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = WalletSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Wallet.objects.filter(user=self.request.user)
+
+
+class WithdrawalRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = WithdrawalRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if is_admin(self.request.user):
+            return WithdrawalRequest.objects.all()
+        return WithdrawalRequest.objects.filter(instructor=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(instructor=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOnly])
+    def approve(self, request, pk=None):
+        withdrawal = self.get_object()
+        if withdrawal.status != 'PENDING':
+            return Response({'detail': 'Request already processed.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check wallet balance
+        wallet = Wallet.objects.get(user=withdrawal.instructor)
+        if wallet.balance < withdrawal.amount:
+            return Response({'detail': 'Insufficient balance.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        withdrawal.status = 'APPROVED'
+        withdrawal.save()
+        
+        # Deduct from wallet
+        wallet.balance -= withdrawal.amount
+        wallet.save()
+
+        Transaction.objects.create(
+            wallet=wallet,
+            amount=-withdrawal.amount,
+            transaction_type='WITHDRAWAL'
+        )
+        return Response({'detail': 'Withdrawal approved.'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOnly])
+    def mark_paid(self, request, pk=None):
+        withdrawal = self.get_object()
+        if withdrawal.status != 'APPROVED':
+            return Response({'detail': 'Request must be approved first.'}, status=status.HTTP_400_BAD_REQUEST)
+        withdrawal.status = 'PAID'
+        withdrawal.save()
+        return Response({'detail': 'Withdrawal marked as paid.'})

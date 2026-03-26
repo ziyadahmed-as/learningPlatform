@@ -18,10 +18,13 @@ class Course(models.Model):
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='courses_taught')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='courses')
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    thumbnail = models.ImageField(upload_to='courses/thumbnails/', blank=True, null=True)
+    promo_video = models.FileField(upload_to='courses/promo_videos/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_published = models.BooleanField(default=False)
     is_approved = models.BooleanField(default=False)
+    is_submitted = models.BooleanField(default=False)
     views_count = models.PositiveIntegerField(default=0)
 
     def __str__(self):
@@ -137,3 +140,48 @@ class CourseView(models.Model):
 
     def __str__(self):
         return f'View on {self.course.title} at {self.viewed_at}'
+
+class Review(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='reviews')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reviews')
+    rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)])
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('course', 'student')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Review for {self.course.title} by {self.student.username}'
+
+class Wallet(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='wallet')
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_earned = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Wallet for {self.user.username}'
+
+class Transaction(models.Model):
+    wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='transactions')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True)
+    transaction_type = models.CharField(max_length=20, choices=[('SALE', 'Sale'), ('WITHDRAWAL', 'Withdrawal')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.transaction_type} of {self.amount} for {self.wallet.user.username}'
+
+class WithdrawalRequest(models.Model):
+    instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='withdrawal_requests')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, default='PENDING', choices=[('PENDING', 'Pending'), ('APPROVED', 'Approved'), ('REJECTED', 'Rejected'), ('PAID', 'Paid')])
+    account_details = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Withdrawal of {self.amount} for {self.instructor.username}'

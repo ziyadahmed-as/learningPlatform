@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import Category, Course, Chapter, Lesson, ContentBlock, Enrollment, Payment, LessonImage, LessonFile, LessonProgress
+from .models import (
+    Category, Course, Chapter, Lesson, ContentBlock, 
+    Enrollment, Payment, LessonImage, LessonFile, 
+    LessonProgress, Review, Wallet, Transaction, WithdrawalRequest
+)
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -58,8 +62,9 @@ class CourseSerializer(serializers.ModelSerializer):
         model = Course
         fields = [
             'id', 'title', 'slug', 'description', 'price', 
+            'thumbnail', 'promo_video',
             'instructor', 'instructor_name', 'category', 
-            'created_at', 'updated_at', 'is_published', 'is_approved',
+            'created_at', 'updated_at', 'is_published', 'is_approved', 'is_submitted',
             'views_count', 'chapters', 'is_enrolled',
             'enrollment_count', 'completion_percentage',
         ]
@@ -102,4 +107,30 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         model = Enrollment
         fields = ['id', 'course', 'course_title', 'enrolled_at', 'is_paid', 'payment']
         read_only_fields = ['is_paid', 'student']
+
+class ReviewSerializer(serializers.ModelSerializer):
+    student_name = serializers.ReadOnlyField(source='student.username')
+
+    class Meta:
+        model = Review
+        fields = ['id', 'course', 'student', 'student_name', 'rating', 'comment', 'created_at']
+        read_only_fields = ['student']
+
+class TransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Transaction
+        fields = ['id', 'wallet', 'amount', 'course', 'transaction_type', 'created_at']
+
+class WalletSerializer(serializers.ModelSerializer):
+    transactions = TransactionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Wallet
+        fields = ['id', 'user', 'balance', 'total_earned', 'transactions', 'updated_at']
+
+class WithdrawalRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WithdrawalRequest
+        fields = ['id', 'instructor', 'amount', 'status', 'account_details', 'created_at', 'updated_at']
+        read_only_fields = ['status', 'instructor']
 
