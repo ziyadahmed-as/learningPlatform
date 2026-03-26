@@ -116,6 +116,18 @@ class LessonFile(models.Model):
     class Meta:
         ordering = ['order']
 
+class LessonLink(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='links')
+    url = models.URLField()
+    title = models.CharField(max_length=255)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return self.title
+
 class LessonProgress(models.Model):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='lesson_progress')
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='progress')

@@ -269,6 +269,10 @@ class LessonImageViewSet(viewsets.ModelViewSet):
 class LessonFileViewSet(viewsets.ModelViewSet):
     queryset = LessonFile.objects.all()
     serializer_class = LessonFileSerializer
+
+class LessonLinkViewSet(viewsets.ModelViewSet):
+    queryset = LessonLink.objects.all()
+    serializer_class = LessonLinkSerializer
     permission_classes = [IsAdminOrInstructorOrReadOnly]
 
 
