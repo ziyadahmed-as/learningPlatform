@@ -4,8 +4,10 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import CharacterTextSplitter
-from langchain.chains import RetrievalQA
-from langchain_core.prompts import PromptTemplate
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage, HumanMessage
 
 class AIService:
     _vectorstore = None
@@ -40,43 +42,44 @@ class AIService:
 
         llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
         
-        prompt_template = """You are a helpful assistant for this learning platform. 
-Use the following pieces of context to answer the user's question about the platform. 
-If you don't know the answer based on the context, say that you don't know. 
-Keep the answer concise and professional.
-
-Context: {context}
-
-Question: {question}
-
-Helpful Answer:"""
+        system_prompt = (
+            "You are a helpful assistant for this learning platform. "
+            "Use the following pieces of context to answer the user's question about the platform. "
+            "If you don't know the answer based on the context, say that you don't know. "
+            "Keep the answer concise and professional.\n\n"
+            "{context}"
+        )
         
-        PROMPT = PromptTemplate(
-            template=prompt_template, input_variables=["context", "question"]
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", system_prompt),
+                ("human", "{input}"),
+            ]
         )
 
-        qa = RetrievalQA.from_chain_type(
-            llm=llm,
-            chain_type="stuff",
-            retriever=vectorstore.as_retriever(),
-            chain_type_kwargs={"prompt": PROMPT}
-        )
+        question_answer_chain = create_stuff_documents_chain(llm, prompt)
+        rag_chain = create_retrieval_chain(vectorstore.as_retriever(), question_answer_chain)
 
-        result = qa.invoke(query)
-        return result['result']
+        result = rag_chain.invoke({"input": query})
+        return result['answer']
 
     @classmethod
     def generate_course_description(cls, title, audience=None, keywords=None):
         """Generates a course description for instructors."""
         llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.8, openai_api_key=os.getenv('OPENAI_API_KEY'))
         
-        prompt = f"Help me write a professional and engaging course description for a course titled '{title}'."
+        prompt_text = f"Help me write a professional and engaging course description for a course titled '{title}'."
         if audience:
-            prompt += f" The target audience is {audience}."
+            prompt_text += f" The target audience is {audience}."
         if keywords:
-            prompt += f" Please include these keywords: {keywords}."
+            prompt_text += f" Please include these keywords: {keywords}."
         
-        prompt += "\n\nThe description should include an overview, what students will learn, and why they should take this course."
+        prompt_text += "\n\nThe description should include an overview, what students will learn, and why they should take this course."
         
-        response = llm.invoke(prompt)
+        messages = [
+            SystemMessage(content="You are a professional educational content writer."),
+            HumanMessage(content=prompt_text)
+        ]
+        
+        response = llm.invoke(messages)
         return response.content

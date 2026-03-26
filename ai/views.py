@@ -27,7 +27,13 @@ class PlatformChatView(APIView):
             response = AIService.get_platform_chat_response(query)
             return Response({"response": response}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            error_msg = str(e)
+            if "insufficient_quota" in error_msg:
+                return Response(
+                    {"error": "AI service limit reached. Please check back later or contact support."}, 
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            return Response({"error": error_msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class AssistantCourseDescriptionView(APIView):
     """
@@ -57,4 +63,10 @@ class AssistantCourseDescriptionView(APIView):
             description = AIService.generate_course_description(title, audience, keywords)
             return Response({"description": description}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            error_msg = str(e)
+            if "insufficient_quota" in error_msg:
+                return Response(
+                    {"error": "AI service limit reached. Please check back later or contact support."}, 
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            return Response({"error": error_msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
