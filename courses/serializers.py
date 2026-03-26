@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Category, Course, Chapter, Lesson, ContentBlock, 
-    Enrollment, Payment, LessonImage, LessonFile, LessonLink,
+    Enrollment, Payment,
     LessonProgress, Review, Wallet, Transaction, WithdrawalRequest
 )
 
@@ -13,33 +13,19 @@ class CategorySerializer(serializers.ModelSerializer):
 class ContentBlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentBlock
-        fields = ['id', 'lesson', 'title', 'content', 'image', 'pdf_file', 'video_url', 'video_file', 'order']
+        fields = ['id', 'lesson', 'title', 'type', 'text_content', 'file', 'url', 'order']
 
-class LessonImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LessonImage
-        fields = ['id', 'lesson', 'image', 'caption', 'order']
-
-class LessonFileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LessonFile
-        fields = ['id', 'lesson', 'file', 'title', 'order']
-
-class LessonLinkSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LessonLink
-        fields = ['id', 'lesson', 'url', 'title', 'order']
 
 class LessonSerializer(serializers.ModelSerializer):
-    images = LessonImageSerializer(many=True, read_only=True)
-    files = LessonFileSerializer(many=True, read_only=True)
-    links = LessonLinkSerializer(many=True, read_only=True)
     content_blocks = ContentBlockSerializer(many=True, read_only=True)
     is_completed = serializers.SerializerMethodField()
 
     class Meta:
         model = Lesson
-        fields = ['id', 'chapter', 'title', 'content', 'video_url', 'order', 'images', 'files', 'content_blocks', 'is_completed']
+        fields = [
+            'id', 'chapter', 'title', 'description', 'order', 
+            'content_blocks', 'is_completed'
+        ]
 
     def get_is_completed(self, obj):
         request = self.context.get('request')

@@ -48,8 +48,9 @@ class Chapter(models.Model):
 class Lesson(models.Model):
     chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name='lessons')
     title = models.CharField(max_length=200)
-    content = models.TextField(blank=True)
-    video_url = models.URLField(blank=True, null=True)
+    description = models.TextField(blank=True)
+    duration = models.PositiveIntegerField(default=0)  # in seconds
+    is_preview = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -61,20 +62,27 @@ class Lesson(models.Model):
         return f'{self.chapter.course.title} - {self.chapter.title} - {self.title}'
 
 class ContentBlock(models.Model):
+    BLOCK_TYPES = [
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('pdf', 'PDF'),
+        ('video_upload', 'Video (Upload)'),
+        ('video_link', 'Video (Link)'),
+        ('link', 'Web Link'),
+    ]
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks')
     title = models.CharField(max_length=200, blank=True)
-    content = models.TextField()
-    image = models.ImageField(upload_to='content_blocks/images/', blank=True, null=True)
-    pdf_file = models.FileField(upload_to='content_blocks/pdfs/', blank=True, null=True)
-    video_url = models.URLField(blank=True, null=True)
-    video_file = models.FileField(upload_to='content_blocks/videos/', blank=True, null=True)
+    type = models.CharField(max_length=15, choices=BLOCK_TYPES, default='text')
+    text_content = models.TextField(blank=True)
+    file = models.FileField(upload_to='content_blocks/files/', blank=True, null=True)
+    url = models.URLField(blank=True, null=True)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ['order']
 
     def __str__(self):
-        return f'Block {self.order} for {self.lesson.title}'
+        return f'[{self.type.upper()}] Block {self.order} for {self.lesson.title}'
 
 class Enrollment(models.Model):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='enrollments')
@@ -98,39 +106,11 @@ class Payment(models.Model):
     def __str__(self):
         return f'Payment for {self.enrollment}'
 
-class LessonImage(models.Model):
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='lessons/images/')
-    caption = models.CharField(max_length=255, blank=True)
-    order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['order']
-
-class LessonFile(models.Model):
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='files')
-    file = models.FileField(upload_to='lessons/files/')
-    title = models.CharField(max_length=255)
-    order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['order']
-
-class LessonLink(models.Model):
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='links')
-    url = models.URLField()
-    title = models.CharField(max_length=255)
-    order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['order']
-
-    def __str__(self):
-        return self.title
 
 class LessonProgress(models.Model):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='lesson_progress')
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='progress')
+    watched_seconds = models.PositiveIntegerField(default=0)
     is_completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(auto_now=True)
 

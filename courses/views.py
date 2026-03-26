@@ -3,13 +3,13 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from .models import (
     Category, Course, Chapter, Lesson, ContentBlock, Enrollment, Payment, 
-    LessonImage, LessonFile, LessonProgress, CourseView, Review, Wallet, 
+    LessonProgress, CourseView, Review, Wallet, 
     Transaction, WithdrawalRequest
 )
 from .serializers import (
     CategorySerializer, CourseSerializer, ChapterSerializer,
     LessonSerializer, ContentBlockSerializer, EnrollmentSerializer, 
-    LessonImageSerializer, LessonFileSerializer, ReviewSerializer,
+    ReviewSerializer,
     WalletSerializer, TransactionSerializer, WithdrawalRequestSerializer
 )
 from django.conf import settings
@@ -52,7 +52,7 @@ class IsAdminOrInstructorOrReadOnly(permissions.BasePermission):
             return obj.course.instructor == request.user
         if hasattr(obj, 'chapter'): # Lessons
             return obj.chapter.course.instructor == request.user
-        if hasattr(obj, 'lesson'): # ContentBlock, LessonImage, LessonFile
+        if hasattr(obj, 'lesson'): # ContentBlock
             return obj.lesson.chapter.course.instructor == request.user
         return False
 
@@ -228,7 +228,7 @@ class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.all()
 
     def get_queryset(self):
-        return Lesson.objects.all().select_related('chapter__course').prefetch_related('images', 'files', 'content_blocks')
+        return Lesson.objects.all().select_related('chapter__course').prefetch_related('content_blocks')
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def mark_completed(self, request, pk=None):
@@ -259,21 +259,34 @@ class LessonViewSet(viewsets.ModelViewSet):
 
         return Response({'detail': 'Lesson marked as completed.'})
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def update_progress(self, request, pk=None):
+        lesson = self.get_object()
+        user = request.user
+        watched_seconds = request.data.get('watched_seconds', 0)
 
-class LessonImageViewSet(viewsets.ModelViewSet):
-    queryset = LessonImage.objects.all()
-    serializer_class = LessonImageSerializer
-    permission_classes = [IsAdminOrInstructorOrReadOnly]
+        # Check if student is enrolled
+        course = lesson.chapter.course
+        if not Enrollment.objects.filter(student=user, course=course).exists():
+            return Response({'detail': 'You must be enrolled in this course.'}, status=status.HTTP_403_FORBIDDEN)
+
+        progress, created = LessonProgress.objects.get_or_create(student=user, lesson=lesson)
+        
+        try:
+            new_seconds = int(watched_seconds)
+            if new_seconds > progress.watched_seconds:
+                progress.watched_seconds = new_seconds
+                progress.save()
+        except (ValueError, TypeError):
+            pass
+
+        return Response({
+            'detail': 'Progress updated.', 
+            'watched_seconds': progress.watched_seconds,
+            'is_completed': progress.is_completed
+        })
 
 
-class LessonFileViewSet(viewsets.ModelViewSet):
-    queryset = LessonFile.objects.all()
-    serializer_class = LessonFileSerializer
-
-class LessonLinkViewSet(viewsets.ModelViewSet):
-    queryset = LessonLink.objects.all()
-    serializer_class = LessonLinkSerializer
-    permission_classes = [IsAdminOrInstructorOrReadOnly]
 
 
 class EnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
