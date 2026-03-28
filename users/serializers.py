@@ -29,9 +29,12 @@ class RegisterSerializer(serializers.ModelSerializer):
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
-            role=User.Role.STUDENT,
+            role=validated_data.get('role', User.Role.STUDENT),
             first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
+            last_name=validated_data.get('last_name', ''),
+            expertise=validated_data.get('expertise', ''),
+            education_level=validated_data.get('education_level', ''),
+            years_of_experience=validated_data.get('years_of_experience', 0)
         )
         return user
 
