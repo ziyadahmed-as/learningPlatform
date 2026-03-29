@@ -16,7 +16,9 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name')
+        fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name',
+                  'role', 'expertise', 'education_level', 'years_of_experience', 'bio', 
+                  'linkedin', 'portfolio', 'proposed_courses', 'cv_file')
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
@@ -34,7 +36,12 @@ class RegisterSerializer(serializers.ModelSerializer):
             last_name=validated_data.get('last_name', ''),
             expertise=validated_data.get('expertise', ''),
             education_level=validated_data.get('education_level', ''),
-            years_of_experience=validated_data.get('years_of_experience', 0)
+            years_of_experience=validated_data.get('years_of_experience', 0),
+            bio=validated_data.get('bio', ''),
+            linkedin=validated_data.get('linkedin', ''),
+            portfolio=validated_data.get('portfolio', ''),
+            proposed_courses=validated_data.get('proposed_courses', ''),
+            cv_file=validated_data.get('cv_file', None)
         )
         return user
 

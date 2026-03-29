@@ -15,7 +15,10 @@ class User(AbstractUser):
     expertise = models.CharField(max_length=255, blank=True, null=True)
     education_level = models.CharField(max_length=255, blank=True, null=True)
     years_of_experience = models.PositiveIntegerField(default=0)
-    cv_url = models.URLField(blank=True, null=True) # or FileField for real CVs later
+    cv_file = models.FileField(upload_to='instructor_cvs/', blank=True, null=True)
+    linkedin = models.URLField(max_length=255, blank=True, null=True)
+    portfolio = models.URLField(max_length=255, blank=True, null=True)
+    proposed_courses = models.TextField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
         # Ensure superusers are always recognized as ADMIN role in the frontend
