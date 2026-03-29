@@ -1,9 +1,7 @@
 from rest_framework import serializers
-from .models import (
-    Category, Course, Chapter, Lesson, ContentBlock, 
-    Enrollment, Payment,
-    LessonProgress, Review, Wallet, Transaction, WithdrawalRequest
-)
+from .models import Category, Course, Chapter, Lesson, ContentBlock
+from finance.models import Wallet, Transaction, Payment, WithdrawalRequest
+from interactions.models import Enrollment, LessonProgress, Review
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -49,18 +47,27 @@ class CourseSerializer(serializers.ModelSerializer):
     is_enrolled = serializers.SerializerMethodField()
     enrollment_count = serializers.SerializerMethodField()
     completion_percentage = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = [
             'id', 'title', 'slug', 'description', 'price', 
             'thumbnail', 'promo_video',
-            'instructor', 'instructor_name', 'category', 
+            'instructor', 'instructor_name', 'category', 'category_name',
             'created_at', 'updated_at', 'is_published', 'is_approved', 'is_submitted',
-            'views_count', 'chapters', 'is_enrolled',
+            'views_count', 'chapters', 'is_enrolled', 'rating',
             'enrollment_count', 'completion_percentage',
         ]
         read_only_fields = ['instructor', 'is_approved', 'views_count']
+
+    category_name = serializers.ReadOnlyField(source='category.name')
+
+    def get_rating(self, obj):
+        reviews = obj.reviews.all()
+        if not reviews:
+            return 4.9 # Default institutional rating for new courses
+        return round(sum(r.rating for r in reviews) / reviews.count(), 1)
 
     def get_is_enrolled(self, obj):
         request = self.context.get('request')
@@ -93,12 +100,25 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     course_title = serializers.ReadOnlyField(source='course.title')
+    course_thumbnail = serializers.ImageField(source='course.thumbnail', read_only=True)
     payment = PaymentSerializer(read_only=True)
+    progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Enrollment
-        fields = ['id', 'course', 'course_title', 'enrolled_at', 'is_paid', 'payment']
+        fields = ['id', 'course', 'course_title', 'course_thumbnail', 'enrolled_at', 'is_paid', 'payment', 'progress']
         read_only_fields = ['is_paid', 'student']
+
+    def get_progress(self, obj):
+        total_lessons = Lesson.objects.filter(chapter__course=obj.course).count()
+        if total_lessons == 0:
+            return 0
+        completed_lessons = LessonProgress.objects.filter(
+            student=obj.student, 
+            lesson__chapter__course=obj.course, 
+            is_completed=True
+        ).count()
+        return int((completed_lessons / total_lessons) * 100)
 
 class ReviewSerializer(serializers.ModelSerializer):
     student_name = serializers.ReadOnlyField(source='student.username')

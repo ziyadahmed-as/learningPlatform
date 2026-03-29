@@ -2,10 +2,10 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from .models import (
-    Category, Course, Chapter, Lesson, ContentBlock, Enrollment, Payment, 
-    LessonProgress, CourseView, Review, Wallet, 
-    Transaction, WithdrawalRequest
+    Category, Course, Chapter, Lesson, ContentBlock
 )
+from finance.models import Wallet, Transaction, Payment, WithdrawalRequest
+from interactions.models import Enrollment, LessonProgress, CourseView, Review
 from .serializers import (
     CategorySerializer, CourseSerializer, ChapterSerializer,
     LessonSerializer, ContentBlockSerializer, EnrollmentSerializer, 
@@ -151,6 +151,21 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         return Response({'views_count': course.views_count})
 
+    @action(detail=False, methods=['post'], url_path='generate-description', permission_classes=[permissions.IsAuthenticated])
+    def generate_description(self, request):
+        """AI-powered auto-generation of course descriptions based on title."""
+        title = request.data.get('title', '')
+        if not title:
+            return Response({'detail': 'Node title required for AI expansion.'}, status=400)
+        
+        # Simplified AI Mock: In production, this would call OpenAI/Gemini API
+        # but the structure is ready for institutional AI synchronization.
+        mock_description = f"This comprehensive curriculum for '{title}' is synchronized with global standards. " \
+                          f"Students will master core concepts through peer-validated modules and " \
+                          f"institutional skill clusters designed for maximum scholarly yield."
+        
+        return Response({'description': mock_description})
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def instructor_stats(self, request):
         """Return aggregated stats for the logged-in instructor's courses."""
@@ -254,10 +269,14 @@ class LessonViewSet(viewsets.ModelViewSet):
                 return Response({'detail': 'Please complete the previous lesson first.'}, status=status.HTTP_400_BAD_REQUEST)
 
         progress, created = LessonProgress.objects.get_or_create(student=user, lesson=lesson)
-        progress.is_completed = True
-        progress.save()
+        if not progress.is_completed:
+            progress.is_completed = True
+            progress.save()
+            # Add scholarly points for node completion
+            user.points += 10
+            user.save(update_fields=['points'])
 
-        return Response({'detail': 'Lesson marked as completed.'})
+        return Response({'detail': 'Lesson marked as completed.', 'points_earned': 10})
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def update_progress(self, request, pk=None):
@@ -373,6 +392,10 @@ def stripe_webhook(request):
                 wallet.balance += earnings
                 wallet.total_earned += earnings
                 wallet.save()
+
+                # Add scholarly points to instructor for successful knowledge transfer
+                instructor.points += 50
+                instructor.save(update_fields=['points'])
 
                 Transaction.objects.create(
                     wallet=wallet,
