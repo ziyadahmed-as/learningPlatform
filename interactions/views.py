@@ -9,6 +9,7 @@ from .serializers import (
 from courses.models import Lesson, Course
 from django.utils import timezone
 from datetime import timedelta
+from ai.services import AIService
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
     queryset = Enrollment.objects.all()
@@ -95,6 +96,49 @@ class LessonProgressViewSet(viewsets.ModelViewSet):
             'watched_seconds': progress.watched_seconds,
             'is_completed': progress.is_completed
         })
+
+    @action(detail=False, methods=['post'], url_path='ai-assistant/(?P<lesson_id>[^/.]+)')
+    def ai_assistant(self, request, lesson_id=None):
+        """Dedicated AI assistant for students that knows about the current lesson."""
+        user = request.user
+        query = request.data.get('query')
+        if not query:
+            return Response({'detail': 'Query required.'}, status=400)
+
+        try:
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Lesson.DoesNotExist:
+            return Response({'detail': 'Lesson not found.'}, status=404)
+
+        # Check if student is enrolled
+        course = lesson.chapter.course
+        if not Enrollment.objects.filter(student=user, course=course).exists():
+            return Response({'detail': 'You must be enrolled.'}, status=403)
+
+        context = f"Lesson Title: {lesson.title}. Description: {lesson.description}."
+        # Optionally add content blocks to context
+        content_blocks = lesson.content_blocks.all()
+        if content_blocks:
+            context += " Content Summary: " + " ".join([cb.title for cb in content_blocks if cb.title])
+
+        response = AIService.get_learning_assistant_response(query, context)
+        return Response({'response': response})
+
+    @action(detail=False, methods=['post'], url_path='ai-summary/(?P<lesson_id>[^/.]+)')
+    def ai_summary(self, request, lesson_id=None):
+        """Generate an AI summary of the lesson content."""
+        user = request.user
+        try:
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Lesson.DoesNotExist:
+            return Response({'detail': 'Lesson not found.'}, status=404)
+
+        if not Enrollment.objects.filter(student=user, course=lesson.chapter.course).exists():
+            return Response({'detail': 'You must be enrolled.'}, status=403)
+
+        content = f"Title: {lesson.title}. Description: {lesson.description}."
+        summary = AIService.summarize_content(content)
+        return Response({'summary': summary})
 
 class CourseViewViewSet(viewsets.ModelViewSet):
     queryset = CourseView.objects.all()

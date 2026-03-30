@@ -10,6 +10,7 @@ from .serializers import (
     LessonSerializer, ContentBlockSerializer, LiveStreamSerializer
 )
 from django.db.models import Sum
+from ai.services import AIService
 import decimal
 
 def is_admin(user):
@@ -76,6 +77,43 @@ class CourseViewSet(viewsets.ModelViewSet):
         course.save()
         return Response({'detail': 'Submitted for approval.'})
 
+    @action(detail=True, methods=['post'], url_path='generate-ai-description')
+    def generate_ai_description(self, request, pk=None):
+        """AI tool for instructors to generate course descriptions."""
+        course = self.get_object()
+        keywords = request.data.get('keywords', '')
+        audience = request.data.get('audience', '')
+        
+        description = AIService.generate_course_description(course.title, audience, keywords)
+        course.description = description
+        course.save(update_fields=['description'])
+        
+        return Response({'description': description})
+
+    @action(detail=True, methods=['post'], url_path='generate-ai-curriculum')
+    def generate_ai_curriculum(self, request, pk=None):
+        """AI tool for instructors to generate a suggested course structure."""
+        course = self.get_object()
+        curriculum = AIService.generate_course_curriculum(course.title)
+        
+        # Optionally auto-create chapters and lessons if requested
+        auto_create = request.data.get('auto_create', False)
+        if auto_create and isinstance(curriculum, list):
+            for i, chap_data in enumerate(curriculum):
+                chapter = Chapter.objects.create(
+                    course=course, 
+                    title=chap_data.get('chapter_title', f'Chapter {i+1}'),
+                    order=i
+                )
+                for j, lesson_title in enumerate(chap_data.get('lessons', [])):
+                    Lesson.objects.create(
+                        chapter=chapter,
+                        title=lesson_title,
+                        order=j
+                    )
+        
+        return Response({'curriculum': curriculum})
+
     @action(detail=False, methods=['get'])
     def instructor_stats(self, request):
         user = request.user
@@ -108,6 +146,16 @@ class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
     permission_classes = [IsAdminOrInstructorOrReadOnly]
+
+    @action(detail=True, methods=['post'], url_path='generate-ai-quiz')
+    def generate_ai_quiz(self, request, pk=None):
+        """AI tool for instructors to generate a quiz for this lesson."""
+        lesson = self.get_object()
+        count = request.data.get('count', 5)
+        difficulty = request.data.get('difficulty', 'medium')
+        
+        quiz = AIService.generate_quiz(lesson.title, count, difficulty)
+        return Response({'quiz': quiz})
 
 class LiveStreamViewSet(viewsets.ModelViewSet):
     queryset = LiveStream.objects.all()

@@ -152,3 +152,27 @@ class AIService:
         
         response = llm.invoke(messages)
         return response.content
+
+    @classmethod
+    def generate_course_curriculum(cls, title):
+        """Generates a suggested chapter and lesson structure for a course."""
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        
+        prompt_text = (
+            f"Generate a suggested curriculum for a course titled '{title}'. "
+            "The curriculum should have 3-5 chapters, and each chapter should have 3-5 lessons. "
+            "Format the response exactly as a JSON list of objects, where each object has: "
+            "'chapter_title' and 'lessons' (a list of lesson titles)."
+        )
+        
+        messages = [
+            SystemMessage(content="You are a professional curriculum designer."),
+            HumanMessage(content=prompt_text)
+        ]
+        
+        response = llm.invoke(messages)
+        try:
+            content = response.content.replace('```json', '').replace('```', '').strip()
+            return json.loads(content)
+        except:
+            return response.content
