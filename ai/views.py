@@ -27,13 +27,7 @@ class PlatformChatView(APIView):
             response = AIService.get_platform_chat_response(query)
             return Response({"response": response}, status=status.HTTP_200_OK)
         except Exception as e:
-            error_msg = str(e)
-            if "insufficient_quota" in error_msg:
-                return Response(
-                    {"error": "AI service limit reached. Please check back later or contact support."}, 
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE
-                )
-            return Response({"error": error_msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class AssistantCourseDescriptionView(APIView):
     """
@@ -42,31 +36,80 @@ class AssistantCourseDescriptionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Basic check for Instructor role
-        if request.user.role != 'INSTRUCTOR' and request.user.role != 'ADMIN':
+        if request.user.role not in ['INSTRUCTOR', 'ADMIN'] and not request.user.is_superuser:
             return Response({"error": "Only instructors can generate course descriptions"}, status=status.HTTP_403_FORBIDDEN)
 
         if not os.getenv('OPENAI_API_KEY'):
-            return Response(
-                {"error": "AI services are currently unavailable. Missing API Key."}, 
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
+            return Response({"error": "AI services unavailable."}, status=503)
 
         title = request.data.get('title')
         audience = request.data.get('audience', '')
         keywords = request.data.get('keywords', '')
 
         if not title:
-            return Response({"error": "Course title is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Title required"}, status=400)
 
         try:
             description = AIService.generate_course_description(title, audience, keywords)
-            return Response({"description": description}, status=status.HTTP_200_OK)
+            return Response({"description": description})
         except Exception as e:
-            error_msg = str(e)
-            if "insufficient_quota" in error_msg:
-                return Response(
-                    {"error": "AI service limit reached. Please check back later or contact support."}, 
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE
-                )
-            return Response({"error": error_msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": str(e)}, status=500)
+
+class GenerateQuizView(APIView):
+    """
+    Automated quiz generation for instructors based on course topics.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role not in ['INSTRUCTOR', 'ADMIN'] and not request.user.is_superuser:
+            return Response({"error": "Only instructors can generate quizzes"}, status=403)
+
+        topic = request.data.get('topic')
+        count = request.data.get('count', 5)
+        difficulty = request.data.get('difficulty', 'medium')
+
+        if not topic:
+            return Response({"error": "Topic required"}, status=400)
+
+        try:
+            quiz = AIService.generate_quiz(topic, count, difficulty)
+            return Response({"quiz": quiz})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+class SummarizeContentView(APIView):
+    """
+    AI-powered content summarization for learners and administrators.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        content = request.data.get('content')
+        if not content:
+            return Response({"error": "Content required"}, status=400)
+
+        try:
+            summary = AIService.summarize_content(content)
+            return Response({"summary": summary})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+class LearningAssistantView(APIView):
+    """
+    Dedicated AI Learning Assistant for students.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        query = request.data.get('query')
+        context = request.data.get('context', '') # Course or lesson context
+
+        if not query:
+            return Response({"error": "Query required"}, status=400)
+
+        try:
+            response = AIService.get_learning_assistant_response(query, context)
+            return Response({"response": response})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)

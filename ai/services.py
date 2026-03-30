@@ -8,6 +8,7 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage
+import json
 
 class AIService:
     _vectorstore = None
@@ -20,7 +21,10 @@ class AIService:
 
         data_path = os.path.join(settings.BASE_DIR, 'ai', 'data', 'platform_info.md')
         if not os.path.exists(data_path):
-            return None
+            # Create a dummy platform info if it doesn't exist
+            os.makedirs(os.path.dirname(data_path), exist_ok=True)
+            with open(data_path, 'w', encoding='utf-8') as f:
+                f.write("# Platform Information\n\nWelcome to our professional learning platform.")
 
         # Load and split documents
         loader = TextLoader(data_path, encoding='utf-8')
@@ -78,6 +82,71 @@ class AIService:
         
         messages = [
             SystemMessage(content="You are a professional educational content writer."),
+            HumanMessage(content=prompt_text)
+        ]
+        
+        response = llm.invoke(messages)
+        return response.content
+
+    @classmethod
+    def generate_quiz(cls, topic, count=5, difficulty='medium'):
+        """Generates a quiz based on a topic."""
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        
+        prompt_text = (
+            f"Generate a quiz with {count} multiple-choice questions on the topic: '{topic}'. "
+            f"Difficulty level: {difficulty}. "
+            "Format the response as a JSON list of objects, each having: "
+            "'question', 'options' (a list of 4 strings), and 'correct_answer' (one of the options)."
+        )
+        
+        messages = [
+            SystemMessage(content="You are an expert educational assessment creator."),
+            HumanMessage(content=prompt_text)
+        ]
+        
+        response = llm.invoke(messages)
+        try:
+            # Clean response if it contains markdown formatting
+            content = response.content.replace('```json', '').replace('```', '').strip()
+            return json.loads(content)
+        except:
+            return response.content
+
+    @classmethod
+    def summarize_content(cls, content):
+        """Summarizes educational content for learners."""
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.5, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        
+        prompt_text = (
+            "Summarize the following educational content in a structured way using bullet points. "
+            "Focus on the most important learning objectives and key takeaways.\n\n"
+            f"Content:\n{content}"
+        )
+        
+        messages = [
+            SystemMessage(content="You are a concise educational content summarizer."),
+            HumanMessage(content=prompt_text)
+        ]
+        
+        response = llm.invoke(messages)
+        return response.content
+
+    @classmethod
+    def get_learning_assistant_response(cls, query, context=""):
+        """Contextual learning assistant for students enrolled in courses."""
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        
+        prompt_text = (
+            "You are a dedicated Learning Assistant for a student. "
+            f"Given this specific context from the course: '{context}', "
+            f"please answer the student's question/query: '{query}'. "
+            "If the question isn't directly related to the context, answer it using your general knowledge "
+            "but try to stay within the domain of the course material."
+        )
+        
+        messages = [
+            SystemMessage(content="You are a professional tutor and learning mentor."),
             HumanMessage(content=prompt_text)
         ]
         
