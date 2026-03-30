@@ -24,12 +24,14 @@ class Transaction(BaseModel):
     """
     Temporal Flow of institutional capital.
     """
-    TYPES = [('SALE', 'Registry Sale'), ('WITHDRAWAL', 'System Withdrawal')]
+    class TransactionType(models.TextChoices):
+        SALE = 'SALE', 'Registry Sale'
+        WITHDRAWAL = 'WITHDRAWAL', 'System Withdrawal'
     
     wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='transaction_flow')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     course = models.ForeignKey('courses.Course', on_delete=models.SET_NULL, null=True, blank=True)
-    transaction_type = models.CharField(max_length=20, choices=TYPES)
+    transaction_type = models.CharField(max_length=20, choices=TransactionType.choices)
     reference_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     class Meta:
@@ -42,15 +44,15 @@ class WithdrawalRequest(BaseModel):
     """
     Root Authorization for capital extraction.
     """
-    STATUS = [
-        ('PENDING', 'Pending Approval'),
-        ('APPROVED', 'System Approved'),
-        ('REJECTED', 'Protocol Rejected'),
-        ('PAID', 'Signal Paid')
-    ]
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending Approval'
+        APPROVED = 'APPROVED', 'System Approved'
+        REJECTED = 'REJECTED', 'Protocol Rejected'
+        PAID = 'PAID', 'Signal Paid'
+
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='withdrawals')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=20, default='PENDING', choices=STATUS)
+    status = models.CharField(max_length=20, default=Status.PENDING, choices=Status.choices)
     account_details = models.TextField()
 
     class Meta:

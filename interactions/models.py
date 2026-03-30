@@ -11,11 +11,11 @@ class Enrollment(BaseModel):
     is_paid = models.BooleanField(default=False, db_index=True)
 
     class Meta:
-        unique_together = ('student', 'course_id')
+        unique_together = ('student', 'course')
         verbose_name_plural = 'Scholar Registries'
 
     def __str__(self):
-        return f'{self.student.username} synced to Node {self.course_id}'
+        return f'{self.student.username} synced to Node {self.course.title}'
 
 class LessonProgress(BaseModel):
     """
@@ -32,7 +32,7 @@ class LessonProgress(BaseModel):
         verbose_name_plural = 'Artifact Mastery Flow'
 
     def __str__(self):
-        return f'{self.student.username} - Lesson {self.lesson_id} [Status: {"Mastered" if self.is_completed else "Clinical"}]'
+        return f'{self.student.username} - Lesson {self.lesson.title} [Status: {"Mastered" if self.is_completed else "Clinical"}]'
 
 class CourseView(BaseModel):
     """
@@ -46,7 +46,7 @@ class CourseView(BaseModel):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Signal Pulse on Node {self.course_id}'
+        return f'Signal Pulse on Node {self.course.title}'
 
 class Review(BaseModel):
     """
@@ -62,7 +62,7 @@ class Review(BaseModel):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Review for Node {self.course_id} by {self.student.username}'
+        return f'Review for Node {self.course.title} by {self.student.username}'
 
 class LiveStreamEnrollment(BaseModel):
     """

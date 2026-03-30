@@ -4,7 +4,7 @@ from core.models import BaseModel
 
 class Category(BaseModel):
     name = models.CharField(max_length=100, db_index=True)
-    slug = models.SlugField(max_length=100, unique=True, db_index=True)
+    slug = models.SlugField(max_length=100, unique=True)
 
     class Meta:
         verbose_name_plural = 'categories'
@@ -16,15 +16,14 @@ class Course(BaseModel):
     """
     Primary Knowledge Node in the institutional registry.
     """
-    TYPE_CHOICES = [
-        ('LIVE_TUTORIAL', 'Live Tutorial Hub'),
-        ('HARD_SKILL_RECORDED', 'Hard Skill (Pre-recorded Adaptive)'),
-        ('SOFT_SKILL', 'Soft Skill Mastery'),
-    ]
+    class CourseType(models.TextChoices):
+        LIVE_TUTORIAL = 'LIVE_TUTORIAL', 'Live Tutorial Hub'
+        HARD_SKILL_RECORDED = 'HARD_SKILL_RECORDED', 'Hard Skill (Pre-recorded Adaptive)'
+        SOFT_SKILL = 'SOFT_SKILL', 'Soft Skill Mastery'
 
     title = models.CharField(max_length=200, db_index=True)
-    slug = models.SlugField(max_length=200, unique=True, db_index=True)
-    course_type = models.CharField(max_length=30, choices=TYPE_CHOICES, default='HARD_SKILL_RECORDED', db_index=True)
+    slug = models.SlugField(max_length=200, unique=True)
+    course_type = models.CharField(max_length=30, choices=CourseType.choices, default=CourseType.HARD_SKILL_RECORDED, db_index=True)
     description = models.TextField()
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='curated_content')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='nodes')
@@ -89,17 +88,17 @@ class ContentBlock(models.Model):
     No need for BaseModel here to keep memory footprint low; 
     parent lesson tracks time.
     """
-    BLOCK_TYPES = [
-        ('text', 'Text (Word/Tiptap)'),
-        ('image', 'Identity Image'),
-        ('pdf', 'Artifact PDF'),
-        ('video_upload', 'Institutional Video'),
-        ('video_link', 'External Signal View'),
-        ('link', 'Research Link'),
-    ]
+    class BlockType(models.TextChoices):
+        TEXT = 'text', 'Text (Word/Tiptap)'
+        IMAGE = 'image', 'Identity Image'
+        PDF = 'pdf', 'Artifact PDF'
+        VIDEO_UPLOAD = 'video_upload', 'Institutional Video'
+        VIDEO_LINK = 'video_link', 'External Signal View'
+        LINK = 'link', 'Research Link'
+
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks')
     title = models.CharField(max_length=200, blank=True)
-    type = models.CharField(max_length=15, choices=BLOCK_TYPES, default='text')
+    type = models.CharField(max_length=15, choices=BlockType.choices, default=BlockType.TEXT)
     text_content = models.TextField(blank=True)
     file = models.FileField(upload_to='content_blocks/files/', blank=True, null=True)
     url = models.URLField(blank=True, null=True)
@@ -115,17 +114,16 @@ class LiveStream(BaseModel):
     """
     Live Streaming Sessions for Courses.
     """
-    GROUP_TYPES = [
-        ('VVIP', 'VVIP (1 Student)'),
-        ('VIP1', 'VIP1 (5 Students)'),
-        ('VIP2', 'VIP2 (10 Students)'),
-    ]
+    class GroupType(models.TextChoices):
+        VVIP = 'VVIP', 'VVIP (1 Student)'
+        VIP1 = 'VIP1', 'VIP1 (5 Students)'
+        VIP2 = 'VIP2', 'VIP2 (10 Students)'
     
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='live_streams', null=True, blank=True)
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assigned_streams')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    group_type = models.CharField(max_length=10, choices=GROUP_TYPES, default='VIP1')
+    group_type = models.CharField(max_length=10, choices=GroupType.choices, default=GroupType.VIP1)
     scheduled_at = models.DateTimeField()
     meeting_link = models.URLField(max_length=500, blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=5000.00)
@@ -133,7 +131,11 @@ class LiveStream(BaseModel):
 
     @property
     def max_students(self):
-        capacity_map = {'VVIP': 1, 'VIP1': 5, 'VIP2': 10}
+        capacity_map = {
+            self.GroupType.VVIP: 1, 
+            self.GroupType.VIP1: 5, 
+            self.GroupType.VIP2: 10
+        }
         return capacity_map.get(self.group_type, 5)
 
     class Meta:
