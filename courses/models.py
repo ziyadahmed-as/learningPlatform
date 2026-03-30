@@ -16,8 +16,15 @@ class Course(BaseModel):
     """
     Primary Knowledge Node in the institutional registry.
     """
+    TYPE_CHOICES = [
+        ('LIVE_TUTORIAL', 'Live Tutorial Hub'),
+        ('HARD_SKILL_RECORDED', 'Hard Skill (Pre-recorded Adaptive)'),
+        ('SOFT_SKILL', 'Soft Skill Mastery'),
+    ]
+
     title = models.CharField(max_length=200, db_index=True)
     slug = models.SlugField(max_length=200, unique=True, db_index=True)
+    course_type = models.CharField(max_length=30, choices=TYPE_CHOICES, default='HARD_SKILL_RECORDED', db_index=True)
     description = models.TextField()
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='curated_content')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='nodes')
@@ -56,10 +63,16 @@ class Chapter(BaseModel):
 class Lesson(BaseModel):
     """
     Individual knowledge artifact within a module hub.
+    Adapts based on parent course behavior (Live vs Recorded).
     """
     chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name='lessons')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    
+    # Behavioral artifacts
+    meeting_link = models.URLField(max_length=500, blank=True, null=True)
+    live_at = models.DateTimeField(blank=True, null=True, db_index=True)
+    
     duration = models.PositiveIntegerField(default=0)  # in seconds
     is_preview = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0, db_index=True)

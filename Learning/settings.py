@@ -50,6 +50,9 @@ INSTALLED_APPS = [
     'drf_spectacular',
     
     # Local apps
+    'core',
+    'finance',
+    'interactions',
     'users.apps.UsersConfig',
     'courses.apps.CoursesConfig',
     'ai.apps.AiConfig',

@@ -7,8 +7,28 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'role', 'bio', 'profile_picture', 'first_name', 'last_name')
-        read_only_fields = ('id', 'role')
+        fields = (
+            'id', 'username', 'email', 'role', 'bio', 'profile_picture', 
+            'first_name', 'last_name', 'expertise', 'education_level', 
+            'years_of_experience', 'linkedin', 'portfolio', 
+            'proposed_courses', 'cv_file', 'points', 'signal_strength', 'peer_ranking'
+        )
+        read_only_fields = ('id', 'role', 'signal_strength', 'peer_ranking')
+
+    signal_strength = serializers.SerializerMethodField()
+    peer_ranking = serializers.SerializerMethodField()
+
+    def get_signal_strength(self, obj):
+        return "100%" if obj.is_active else "0%"
+
+    def get_peer_ranking(self, obj):
+        total_users = User.objects.count()
+        if total_users <= 1:
+            return "TOP 1%"
+        better_users = User.objects.filter(points__gt=obj.points).count()
+        rank_percent = int((better_users / total_users) * 100)
+        if rank_percent < 1: return "TOP 1%"
+        return f"TOP {rank_percent}%"
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
@@ -50,7 +70,12 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'password', 'role', 'bio', 'profile_picture', 'first_name', 'last_name')
+        fields = (
+            'id', 'username', 'email', 'password', 'role', 'bio', 
+            'profile_picture', 'first_name', 'last_name', 'expertise', 
+            'education_level', 'years_of_experience', 'linkedin', 
+            'portfolio', 'proposed_courses', 'cv_file', 'points'
+        )
         read_only_fields = ('id',)
 
     def create(self, validated_data):

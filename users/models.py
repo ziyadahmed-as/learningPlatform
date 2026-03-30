@@ -19,6 +19,7 @@ class User(AbstractUser):
     linkedin = models.URLField(max_length=255, blank=True, null=True)
     portfolio = models.URLField(max_length=255, blank=True, null=True)
     proposed_courses = models.TextField(blank=True, null=True)
+    points = models.PositiveIntegerField(default=0)
 
     def save(self, *args, **kwargs):
         # Ensure superusers are always recognized as ADMIN role in the frontend

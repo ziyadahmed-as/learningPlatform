@@ -22,7 +22,7 @@ class LessonSerializer(serializers.ModelSerializer):
         model = Lesson
         fields = [
             'id', 'chapter', 'title', 'description', 'order', 
-            'content_blocks', 'is_completed'
+            'content_blocks', 'is_completed', 'meeting_link', 'live_at'
         ]
 
     def get_is_completed(self, obj):
@@ -52,7 +52,7 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = [
-            'id', 'title', 'slug', 'description', 'price', 
+            'id', 'title', 'slug', 'course_type', 'description', 'price', 
             'thumbnail', 'promo_video',
             'instructor', 'instructor_name', 'category', 'category_name',
             'created_at', 'updated_at', 'is_published', 'is_approved', 'is_submitted',

@@ -82,7 +82,9 @@ class AdminStatsView(APIView):
 
     def get(self, request, *args, **kwargs):
         import calendar
-        from courses.models import Course, Enrollment, Payment, Category
+        from courses.models import Course, Category
+        from interactions.models import Enrollment
+        from finance.models import Payment
         from django.db.models import Sum, Count
         from django.utils import timezone
         from datetime import timedelta
@@ -186,6 +188,22 @@ class AdminStatsView(APIView):
             for cat in categories
         ]
 
+        # ── Top Performing Courses ───────────────────────────────────────────
+        top_courses_qs = Course.objects.filter(is_approved=True).annotate(
+            enroll_count=Count('enrollments')
+        ).order_by('-enroll_count')[:5]
+        
+        top_courses = [
+            {
+                'id': c.id,
+                'title': c.title,
+                'enrollments': c.enroll_count,
+                'revenue': float(c.enrollments.filter(is_paid=True).count() * c.price),
+                'rating': 4.9 # Default institutional rating
+            }
+            for c in top_courses_qs
+        ]
+
         return Response({
             'users': {
                 'total': total_users,
@@ -210,5 +228,6 @@ class AdminStatsView(APIView):
             'pending_instructors': pending_instructors,
             'monthly_growth': monthly_data,
             'category_distribution': category_data,
+            'top_courses': top_courses,
         })
  
