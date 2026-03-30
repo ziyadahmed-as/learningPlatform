@@ -71,3 +71,15 @@ class Payment(BaseModel):
 
     def __str__(self):
         return f'Payment Artifact: {self.amount} (Success: {self.is_successful})'
+
+class LiveStreamPayment(BaseModel):
+    """
+    Stripe Signal Synchronization for Live Streams.
+    """
+    enrollment = models.OneToOneField('interactions.LiveStreamEnrollment', on_delete=models.CASCADE, related_name='payment_artifact')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=5000.00)
+    checkout_session_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    is_successful = models.BooleanField(default=False, db_index=True)
+
+    def __str__(self):
+        return f'Live Stream Payment: {self.amount} (Success: {self.is_successful})'

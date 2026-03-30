@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Course, Chapter, Lesson, ContentBlock
+from .models import Category, Course, Chapter, Lesson, ContentBlock, LiveStream
 from finance.models import Wallet, Transaction, Payment, WithdrawalRequest
 from interactions.models import Enrollment, LessonProgress, Review
 
@@ -145,4 +145,17 @@ class WithdrawalRequestSerializer(serializers.ModelSerializer):
         model = WithdrawalRequest
         fields = ['id', 'instructor', 'amount', 'status', 'account_details', 'created_at', 'updated_at']
         read_only_fields = ['status', 'instructor']
+
+class LiveStreamSerializer(serializers.ModelSerializer):
+    instructor_name = serializers.ReadOnlyField(source='instructor.username')
+    course_name = serializers.ReadOnlyField(source='course.title')
+
+    class Meta:
+        model = LiveStream
+        fields = [
+            'id', 'course', 'course_name', 'instructor', 'instructor_name',
+            'title', 'description', 'group_type', 'max_students',
+            'scheduled_at', 'meeting_link', 'price', 'is_active', 'created_at'
+        ]
+        read_only_fields = ['instructor', 'max_students', 'created_at']
 

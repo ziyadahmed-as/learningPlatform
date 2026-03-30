@@ -51,6 +51,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK
             )
         user.role = 'INSTRUCTOR'
+        user.is_approved_instructor = True
         user.save()
         return Response(
             {'detail': f'{user.username} has been approved as an instructor.'},
@@ -64,6 +65,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         user.role = 'STUDENT'
         # Clear expertise so they no longer appear as a pending application
         user.expertise = ''
+        user.is_approved_instructor = False
         user.save()
         return Response(
             {'detail': f'{user.username} application has been rejected.'},

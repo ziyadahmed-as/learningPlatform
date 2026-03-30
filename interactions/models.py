@@ -63,3 +63,18 @@ class Review(BaseModel):
 
     def __str__(self):
         return f'Review for Node {self.course_id} by {self.student.username}'
+
+class LiveStreamEnrollment(BaseModel):
+    """
+    Registry for Scholars joining a specific Live Streaming Session.
+    """
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='livestream_enrollments')
+    live_stream = models.ForeignKey('courses.LiveStream', on_delete=models.CASCADE, related_name='enrollments')
+    is_paid = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        unique_together = ('student', 'live_stream')
+        verbose_name_plural = 'Live Stream Registries'
+
+    def __str__(self):
+        return f'{self.student.username} synced to Live Stream {self.live_stream.title}'

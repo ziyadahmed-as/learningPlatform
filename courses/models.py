@@ -110,3 +110,34 @@ class ContentBlock(models.Model):
 
     def __str__(self):
         return f'[{self.type.upper()}] Artifact {self.order} - {self.lesson.title}'
+
+class LiveStream(BaseModel):
+    """
+    Live Streaming Sessions for Courses.
+    """
+    GROUP_TYPES = [
+        ('VVIP', 'VVIP (1 Student)'),
+        ('VIP1', 'VIP1 (5 Students)'),
+        ('VIP2', 'VIP2 (10 Students)'),
+    ]
+    
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='live_streams', null=True, blank=True)
+    instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assigned_streams')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    group_type = models.CharField(max_length=10, choices=GROUP_TYPES, default='VIP1')
+    scheduled_at = models.DateTimeField()
+    meeting_link = models.URLField(max_length=500, blank=True, null=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=5000.00)
+    is_active = models.BooleanField(default=True)
+
+    @property
+    def max_students(self):
+        capacity_map = {'VVIP': 1, 'VIP1': 5, 'VIP2': 10}
+        return capacity_map.get(self.group_type, 5)
+
+    class Meta:
+        ordering = ['-scheduled_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.group_type}) - {self.instructor.username}"

@@ -11,9 +11,9 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'role', 'bio', 'profile_picture', 
             'first_name', 'last_name', 'expertise', 'education_level', 
             'years_of_experience', 'linkedin', 'portfolio', 
-            'proposed_courses', 'cv_file', 'points', 'signal_strength', 'peer_ranking'
+            'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 'signal_strength', 'peer_ranking'
         )
-        read_only_fields = ('id', 'role', 'signal_strength', 'peer_ranking')
+        read_only_fields = ('id', 'role', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
 
     signal_strength = serializers.SerializerMethodField()
     peer_ranking = serializers.SerializerMethodField()
@@ -74,7 +74,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'password', 'role', 'bio', 
             'profile_picture', 'first_name', 'last_name', 'expertise', 
             'education_level', 'years_of_experience', 'linkedin', 
-            'portfolio', 'proposed_courses', 'cv_file', 'points'
+            'portfolio', 'proposed_courses', 'cv_file', 'is_approved_instructor', 'points'
         )
         read_only_fields = ('id',)
 

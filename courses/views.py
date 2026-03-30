@@ -2,14 +2,14 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from .models import (
-    Category, Course, Chapter, Lesson, ContentBlock
+    Category, Course, Chapter, Lesson, ContentBlock, LiveStream
 )
 from finance.models import Wallet, Transaction, Payment, WithdrawalRequest
 from interactions.models import Enrollment, LessonProgress, CourseView, Review
 from .serializers import (
     CategorySerializer, CourseSerializer, ChapterSerializer,
     LessonSerializer, ContentBlockSerializer, EnrollmentSerializer, 
-    ReviewSerializer,
+    ReviewSerializer, LiveStreamSerializer,
     WalletSerializer, TransactionSerializer, WithdrawalRequestSerializer
 )
 from django.conf import settings
@@ -474,3 +474,36 @@ class WithdrawalRequestViewSet(viewsets.ModelViewSet):
         withdrawal.status = 'PAID'
         withdrawal.save()
         return Response({'detail': 'Withdrawal marked as paid.'})
+
+class LiveStreamViewSet(viewsets.ModelViewSet):
+    serializer_class = LiveStreamSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if is_admin(user):
+            return LiveStream.objects.all()
+        if user.role == 'INSTRUCTOR':
+            return LiveStream.objects.filter(instructor=user)
+        # Students see active streams (this might be further filtered if streams are course-specific)
+        return LiveStream.objects.filter(is_active=True)
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'assign_instructor']:
+            return [IsAdminOnly()]
+        return super().get_permissions()
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOnly])
+    def assign_instructor(self, request, pk=None):
+        stream = self.get_object()
+        instructor_id = request.data.get('instructor_id')
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            instructor = User.objects.get(id=instructor_id, role='INSTRUCTOR', is_approved_instructor=True)
+        except User.DoesNotExist:
+            return Response({'detail': 'Invalid or unapproved instructor.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        stream.instructor = instructor
+        stream.save()
+        return Response({'detail': f'Instructor {instructor.username} assigned.'})
