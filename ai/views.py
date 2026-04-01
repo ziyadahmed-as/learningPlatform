@@ -27,7 +27,9 @@ class PlatformChatView(APIView):
             response = AIService.get_platform_chat_response(query)
             return Response({"response": response}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            import traceback
+            traceback.print_exc()
+            return Response({"error": str(e), "traceback": traceback.format_exc()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class AssistantCourseDescriptionView(APIView):
     """

@@ -54,9 +54,25 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated and (is_admin(user) or user.role == 'INSTRUCTOR'):
-            return Course.objects.all().select_related('instructor', 'category').prefetch_related('chapters__lessons')
-        return Course.objects.filter(is_approved=True).select_related('instructor', 'category').prefetch_related('chapters__lessons')
+        qs = Course.objects.all().select_related('instructor', 'category').prefetch_related('chapters__lessons')
+        
+        if not user.is_authenticated:
+            return qs.filter(is_approved=True)
+
+        # Dashboard dynamic filtering
+        is_enrolled_filter = self.request.query_params.get('enrolled', 'false') == 'true'
+        is_mine_filter = self.request.query_params.get('mine', 'false') == 'true'
+
+        if is_enrolled_filter:
+            return qs.filter(enrollments__student=user)
+        
+        if is_mine_filter:
+            return qs.filter(instructor=user)
+
+        if is_admin(user) or user.role == 'INSTRUCTOR':
+            return qs
+            
+        return qs.filter(is_approved=True)
 
     def perform_create(self, serializer):
         serializer.save(instructor=self.request.user)
@@ -69,6 +85,16 @@ class CourseViewSet(viewsets.ModelViewSet):
         course.is_approved = True
         course.save()
         return Response({'detail': f'Course {course.title} approved.'})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        if not is_admin(request.user):
+            return Response({'detail': 'Only admins can reject.'}, status=403)
+        course = self.get_object()
+        course.is_approved = False
+        course.is_submitted = False  # Return to instructor for revision
+        course.save()
+        return Response({'detail': f'Course {course.title} rejected and returned for revision.'})
 
     @action(detail=True, methods=['post'])
     def submit_for_approval(self, request, pk=None):
@@ -125,12 +151,80 @@ class CourseViewSet(viewsets.ModelViewSet):
         total_enrollments = Enrollment.objects.filter(course__in=courses).count()
         total_views = courses.aggregate(total=Sum('views_count'))['total'] or 0
 
+        # High-fidelity financial sync
+        wallet, _ = getattr(user, 'wallet_record', (None, None))
+        if not wallet:
+            from finance.models import Wallet
+            wallet, _ = Wallet.objects.get_or_create(user=user)
+
         return Response({
             'total_courses': courses.count(),
             'total_enrollments': total_enrollments,
             'total_views': total_views,
             'approved_count': courses.filter(is_approved=True).count(),
+            'wallet_balance': float(wallet.balance),
+            'total_earned': float(wallet.total_earned)
         })
+
+    @action(detail=False, methods=['get'])
+    def instructor_analytics(self, request):
+        """Tier-1 Time-series Analytics for individual faculty nodes."""
+        from django.utils import timezone
+        from datetime import timedelta
+        import calendar
+        from finance.models import Payment
+        
+        user = request.user
+        courses = Course.objects.filter(instructor=user)
+        now = timezone.now()
+        
+        monthly_data = []
+        for i in range(5, -1, -1):
+            month_start = (now - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0)
+            last_day = calendar.monthrange(month_start.year, month_start.month)[1]
+            month_end = month_start.replace(day=last_day, hour=23, minute=59, second=59)
+
+            enrollments = Enrollment.objects.filter(
+                course__in=courses, created_at__gte=month_start, created_at__lte=month_end
+            ).count()
+            
+            revenue = Payment.objects.filter(
+                enrollment__course__in=courses,
+                is_successful=True,
+                created_at__gte=month_start,
+                created_at__lte=month_end
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            monthly_data.append({
+                'month': month_start.strftime('%b'),
+                'enrollments': enrollments,
+                'revenue': float(revenue)
+            })
+            
+        return Response({'monthly_data': monthly_data})
+
+    @action(detail=False, methods=['get'])
+    def platform_stats(self, request):
+        from users.models import User
+        
+        # Real counts
+        actual_students = User.objects.filter(role='STUDENT').count()
+        actual_instructors = User.objects.filter(role='INSTRUCTOR', is_approved_instructor=True).count()
+        actual_courses = Course.objects.filter(is_approved=True).count()
+        
+        # Structure as requested with base offsets
+        return Response({
+            'students_count': 45000 + actual_students,
+            'instructors_count': 2000 + actual_instructors,
+            'countries_count': 115,
+            'courses_count': 12000 + actual_courses,
+        })
+
+    @action(detail=False, methods=['get'])
+    def popular(self, request):
+        courses = Course.objects.filter(is_approved=True).order_by('-views_count')[:12]
+        serializer = self.get_serializer(courses, many=True)
+        return Response(serializer.data)
 
 class ChapterViewSet(viewsets.ModelViewSet):
     queryset = Chapter.objects.all()

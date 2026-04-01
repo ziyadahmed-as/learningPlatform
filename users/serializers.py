@@ -8,12 +8,12 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'id', 'username', 'email', 'role', 'bio', 'profile_picture', 
+            'id', 'username', 'email', 'role', 'is_superuser', 'bio', 'profile_picture', 
             'first_name', 'last_name', 'expertise', 'education_level', 
             'years_of_experience', 'linkedin', 'portfolio', 
             'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 'signal_strength', 'peer_ranking'
         )
-        read_only_fields = ('id', 'role', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
+        read_only_fields = ('id', 'role', 'is_superuser', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
 
     signal_strength = serializers.SerializerMethodField()
     peer_ranking = serializers.SerializerMethodField()
@@ -64,6 +64,15 @@ class RegisterSerializer(serializers.ModelSerializer):
             cv_file=validated_data.get('cv_file', None)
         )
         return user
+
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # Add user data to response
+        data['user'] = UserSerializer(self.user).data
+        return data
 
 class AdminUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, validators=[validate_password])

@@ -3,9 +3,14 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 
-from .serializers import RegisterSerializer, UserSerializer, AdminUserSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import RegisterSerializer, UserSerializer, AdminUserSerializer, MyTokenObtainPairSerializer
 
 User = get_user_model()
+
+
+class MyTokenObtainView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -20,6 +25,16 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class InstructorListView(generics.ListAPIView):
+    """
+    Publicly accessible list of approved faculty nodes.
+    Used for the /instructors page.
+    """
+    permission_classes = (permissions.AllowAny,)
+    serializer_class = UserSerializer
+    queryset = User.objects.filter(role='INSTRUCTOR', is_approved_instructor=True).order_by('username')
 
 
 class IsAdminUserRole(permissions.BasePermission):
@@ -87,7 +102,7 @@ class AdminStatsView(APIView):
         from courses.models import Course, Category
         from interactions.models import Enrollment
         from finance.models import Payment
-        from django.db.models import Sum, Count
+        from django.db.models import Sum, Count, Q
         from django.utils import timezone
         from datetime import timedelta
 
@@ -103,89 +118,95 @@ class AdminStatsView(APIView):
         # ── Course stats ─────────────────────────────────────────────────────
         total_courses = Course.objects.count()
         approved_courses = Course.objects.filter(is_approved=True).count()
-        pending_approval = Course.objects.filter(is_submitted=True, is_approved=False).count()
+        pending_approval_count = Course.objects.filter(is_submitted=True, is_approved=False).count()
+        
+        # Pending courses list for moderation
+        pending_courses_qs = Course.objects.filter(is_submitted=True, is_approved=False).order_by('-updated_at')[:20]
+        pending_courses = [
+            {
+                'id': c.id,
+                'title': c.title,
+                'instructor': c.instructor.username,
+                'category': c.category.name if c.category else 'Uncategorized',
+                'price': float(c.price),
+                'submitted_at': c.updated_at.strftime('%b %d, %Y')
+            }
+            for c in pending_courses_qs
+        ]
 
         # ── Enrollment stats ─────────────────────────────────────────────────
         total_enrollments = Enrollment.objects.count()
         paid_enrollments = Enrollment.objects.filter(is_paid=True).count()
 
         # ── Revenue ──────────────────────────────────────────────────────────
-        total_revenue = Payment.objects.filter(
-            is_successful=True
-        ).aggregate(total=Sum('amount'))['total'] or 0
+        total_revenue_aggr = Payment.objects.filter(is_successful=True).aggregate(total=Sum('amount'))
+        total_revenue = total_revenue_aggr['total'] if total_revenue_aggr['total'] is not None else 0
 
-        revenue_this_month = Payment.objects.filter(
+        revenue_this_month_aggr = Payment.objects.filter(
             is_successful=True, created_at__gte=thirty_days_ago
-        ).aggregate(total=Sum('amount'))['total'] or 0
+        ).aggregate(total=Sum('amount'))
+        revenue_this_month = revenue_this_month_aggr['total'] if revenue_this_month_aggr['total'] is not None else 0
 
         # ── Pending instructor applications ──────────────────────────────────
-        # Users who registered with expertise (applied as instructor) but are still STUDENT
-        pending_instructors = list(
-            User.objects.filter(
-                role='STUDENT',
-                expertise__isnull=False
-            ).exclude(expertise='').order_by('-date_joined').values(
-                'id', 'username', 'email', 'expertise',
-                'years_of_experience', 'education_level', 'date_joined'
-            )[:20]
-        )
-        # Stringify dates for JSON
-        for u in pending_instructors:
-            if u['date_joined']:
-                u['date_joined'] = u['date_joined'].strftime('%b %d, %Y')
+        pending_instructors_qs = User.objects.filter(
+            role='STUDENT',
+            expertise__isnull=False
+        ).exclude(expertise='').order_by('-date_joined')[:20]
+
+        pending_instructors = [
+            {
+                'id': u.id,
+                'username': u.username,
+                'email': u.email,
+                'expertise': u.expertise,
+                'years_of_experience': u.years_of_experience,
+                'education_level': u.education_level,
+                'date_joined': u.date_joined.strftime('%b %d, %Y') if u.date_joined else ''
+            }
+            for u in pending_instructors_qs
+        ]
 
         # ── Recent users ─────────────────────────────────────────────────────
-        recent_users_qs = User.objects.order_by('-date_joined').values(
-            'id', 'username', 'email', 'role', 'date_joined'
-        )[:10]
-        recent_users = []
-        for u in recent_users_qs:
-            recent_users.append({
-                'id': u['id'],
-                'username': u['username'],
-                'email': u['email'],
-                'role': u['role'],
-                'joined': u['date_joined'].strftime('%b %d, %Y') if u['date_joined'] else '',
-            })
+        recent_users_qs = User.objects.all().order_by('-date_joined')[:10]
+        recent_users = [
+            {
+                'id': u.id,
+                'username': u.username,
+                'email': u.email,
+                'role': u.role,
+                'joined': u.date_joined.strftime('%b %d, %Y') if u.date_joined else '',
+            }
+            for u in recent_users_qs
+        ]
 
         # ── Monthly growth (last 6 months) ───────────────────────────────────
         monthly_data = []
         for i in range(5, -1, -1):
-            # Approximate month boundaries
-            month_start = (now - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0)
-            last_day = calendar.monthrange(month_start.year, month_start.month)[1]
+            target_date = now - timedelta(days=i * 30)
+            month_start = target_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            _, last_day = calendar.monthrange(month_start.year, month_start.month)
             month_end = month_start.replace(day=last_day, hour=23, minute=59, second=59)
 
-            month_users = User.objects.filter(
-                date_joined__gte=month_start, date_joined__lte=month_end
-            ).count()
-            month_revenue = Payment.objects.filter(
-                is_successful=True,
-                created_at__gte=month_start,
-                created_at__lte=month_end
-            ).aggregate(total=Sum('amount'))['total'] or 0
-            month_courses = Course.objects.filter(
-                created_at__gte=month_start, created_at__lte=month_end
-            ).count()
-
+            month_users = User.objects.filter(date_joined__range=(month_start, month_end)).count()
+            month_rev_aggr = Payment.objects.filter(
+                is_successful=True, created_at__range=(month_start, month_end)
+            ).aggregate(total=Sum('amount'))
+            month_revenue = month_rev_aggr['total'] if month_rev_aggr['total'] is not None else 0
+            
             monthly_data.append({
                 'month': month_start.strftime('%b'),
                 'users': month_users,
                 'revenue': float(month_revenue),
-                'courses': month_courses,
             })
 
         # ── Category distribution ─────────────────────────────────────────────
-        categories = Category.objects.annotate(
-            course_count=Count('courses', distinct=True),
-            student_count=Count('courses__enrollments', distinct=True),
-        ).values('name', 'course_count', 'student_count')
-
+        categories = Category.objects.all().annotate(
+            course_count=Count('nodes', distinct=True)
+        )
         category_data = [
             {
-                'category': cat['name'],
-                'courses': cat['course_count'],
-                'students': cat['student_count'],
+                'category': cat.name,
+                'courses': cat.course_count,
             }
             for cat in categories
         ]
@@ -201,7 +222,7 @@ class AdminStatsView(APIView):
                 'title': c.title,
                 'enrollments': c.enroll_count,
                 'revenue': float(c.enrollments.filter(is_paid=True).count() * c.price),
-                'rating': 4.9 # Default institutional rating
+                'rating': 5.0 # Institutional baseline
             }
             for c in top_courses_qs
         ]
@@ -216,7 +237,8 @@ class AdminStatsView(APIView):
             'courses': {
                 'total': total_courses,
                 'approved': approved_courses,
-                'pending_approval': pending_approval,
+                'pending_approval': pending_approval_count,
+                'pending_list': pending_courses,
             },
             'enrollments': {
                 'total': total_enrollments,
