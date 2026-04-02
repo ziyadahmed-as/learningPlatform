@@ -29,11 +29,17 @@ class AIService:
         # Load and split documents
         loader = TextLoader(data_path, encoding='utf-8')
         documents = loader.load()
-        text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50, separator="\n")
         docs = text_splitter.split_documents(documents)
+        
+        if not docs:
+            # Fallback if first split failed
+            text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=0, separator=" ")
+            docs = text_splitter.split_documents(documents)
 
         # Create or load vectorstore
-        embeddings = OpenAIEmbeddings(openai_api_key=os.getenv('OPENAI_API_KEY'))
+        api_key = os.getenv('OPENAI_API_KEY', '').strip('"').strip("'")
+        embeddings = OpenAIEmbeddings(openai_api_key=api_key)
         cls._vectorstore = FAISS.from_documents(docs, embeddings)
         return cls._vectorstore
 
@@ -44,7 +50,8 @@ class AIService:
         if not vectorstore:
             return "Platform information is currently unavailable."
 
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        api_key = os.getenv('OPENAI_API_KEY', '').strip('"').strip("'")
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, openai_api_key=api_key)
         
         system_prompt = (
             "You are a helpful assistant for this learning platform. "
@@ -70,7 +77,8 @@ class AIService:
     @classmethod
     def generate_course_description(cls, title, audience=None, keywords=None):
         """Generates a course description for instructors."""
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.8, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        api_key = os.getenv('OPENAI_API_KEY', '').strip('"').strip("'")
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.8, openai_api_key=api_key)
         
         prompt_text = f"Help me write a professional and engaging course description for a course titled '{title}'."
         if audience:
@@ -91,7 +99,8 @@ class AIService:
     @classmethod
     def generate_quiz(cls, topic, count=5, difficulty='medium'):
         """Generates a quiz based on a topic."""
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        api_key = os.getenv('OPENAI_API_KEY', '').strip('"').strip("'")
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, openai_api_key=api_key)
         
         prompt_text = (
             f"Generate a quiz with {count} multiple-choice questions on the topic: '{topic}'. "
@@ -116,7 +125,8 @@ class AIService:
     @classmethod
     def summarize_content(cls, content):
         """Summarizes educational content for learners."""
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.5, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        api_key = os.getenv('OPENAI_API_KEY', '').strip('"').strip("'")
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.5, openai_api_key=api_key)
         
         prompt_text = (
             "Summarize the following educational content in a structured way using bullet points. "
@@ -135,7 +145,8 @@ class AIService:
     @classmethod
     def get_learning_assistant_response(cls, query, context=""):
         """Contextual learning assistant for students enrolled in courses."""
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        api_key = os.getenv('OPENAI_API_KEY', '').strip('"').strip("'")
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, openai_api_key=api_key)
         
         prompt_text = (
             "You are a dedicated Learning Assistant for a student. "
@@ -156,7 +167,8 @@ class AIService:
     @classmethod
     def generate_course_curriculum(cls, title):
         """Generates a suggested chapter and lesson structure for a course."""
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        api_key = os.getenv('OPENAI_API_KEY', '').strip('"').strip("'")
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, openai_api_key=api_key)
         
         prompt_text = (
             f"Generate a suggested curriculum for a course titled '{title}'. "
