@@ -12,19 +12,6 @@ class User(AbstractUser):
 
     role = models.CharField(max_length=50, choices=Role.choices, default=Role.STUDENT)
     
-    # Temporarily keep fields for migration
-    bio = models.TextField(blank=True, null=True)
-    profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
-    expertise = models.CharField(max_length=255, blank=True, null=True)
-    education_level = models.CharField(max_length=255, blank=True, null=True)
-    years_of_experience = models.PositiveIntegerField(default=0)
-    cv_file = models.FileField(upload_to='instructor_cvs/', blank=True, null=True)
-    linkedin = models.URLField(max_length=255, blank=True, null=True)
-    portfolio = models.URLField(max_length=255, blank=True, null=True)
-    proposed_courses = models.TextField(blank=True, null=True)
-    is_approved_instructor = models.BooleanField(default=False)
-    points = models.PositiveIntegerField(default=0)
-
     def save(self, *args, **kwargs):
         # Superuser logic mapping to SUPER_ADMIN role
         if self.is_superuser:

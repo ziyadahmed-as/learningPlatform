@@ -139,8 +139,8 @@ def stripe_webhook(request):
                 wallet.total_earned += earnings
                 wallet.save()
 
-                instructor.points += 50
-                instructor.save(update_fields=['points'])
+                instructor.student_profile.points += 50
+                instructor.student_profile.save(update_fields=['points'])
 
                 Transaction.objects.create(
                     wallet=wallet, amount=earnings, 

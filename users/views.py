@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
 
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import RegisterSerializer, UserSerializer, AdminUserSerializer, MyTokenObtainPairSerializer
@@ -34,16 +35,16 @@ class InstructorListView(generics.ListAPIView):
     """
     permission_classes = (permissions.AllowAny,)
     serializer_class = UserSerializer
-    queryset = User.objects.filter(role='INSTRUCTOR', is_approved_instructor=True).order_by('username')
+    queryset = User.objects.filter(role='INSTRUCTOR', instructor_profile__is_approved_instructor=True).order_by('username')
 
 
 class IsAdminUserRole(permissions.BasePermission):
-    """Allows access only to users with the ADMIN role."""
+    """Allows access only to users with the ADMIN or SUPER_ADMIN role."""
     def has_permission(self, request, view):
         return bool(
             request.user and
             request.user.is_authenticated and
-            (request.user.role == 'ADMIN' or request.user.is_superuser)
+            (request.user.role in ['ADMIN', 'SUPER_ADMIN'] or request.user.is_superuser)
         )
 
 
@@ -53,20 +54,67 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     Adds approve/reject instructor application actions.
     """
     serializer_class = AdminUserSerializer
-    queryset = User.objects.all().order_by('-date_joined')
+    queryset = User.objects.all().select_related('profile', 'instructor_profile', 'student_profile').order_by('-date_joined')
     permission_classes = [IsAdminUserRole]
+
+    def get_queryset(self):
+        role_filter = self.request.query_params.get('role')
+        qs = self.queryset
+        if role_filter:
+            qs = qs.filter(role=role_filter)
+        return qs
+
+    def perform_create(self, serializer):
+        # Restriction: ADMIN cannot create SUPER_ADMIN or other ADMINS
+        requested_role = serializer.validated_data.get('role')
+        if self.request.user.role == 'ADMIN' and requested_role in ['ADMIN', 'SUPER_ADMIN']:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to create accounts with administrative roles.")
+        serializer.save()
+
+    def perform_update(self, serializer):
+        user_to_update = self.get_object()
+        current_admin = self.request.user
+        requested_role = serializer.validated_data.get('role')
+
+        # Restriction: ADMIN cannot modify ADMIN or SUPER_ADMIN
+        if current_admin.role == 'ADMIN':
+            if user_to_update.role in ['ADMIN', 'SUPER_ADMIN']:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You do not have permission to modify other administrative accounts.")
+            
+            if requested_role in ['ADMIN', 'SUPER_ADMIN']:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You do not have permission to promote users to administrative roles.")
+
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        user_to_delete = self.get_object()
+        current_admin = request.user
+
+        # Restriction: ADMIN cannot delete ADMIN or SUPER_ADMIN
+        if current_admin.role == 'ADMIN' and user_to_delete.role in ['ADMIN', 'SUPER_ADMIN']:
+            return Response(
+                {'detail': "You do not have permission to delete administrative accounts."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUserRole])
     def approve_instructor(self, request, pk=None):
         """Promote a user to INSTRUCTOR role (approve their application)."""
         user = self.get_object()
-        if user.role == 'INSTRUCTOR':
+        if user.role == 'INSTRUCTOR' and user.instructor_profile.is_approved_instructor:
             return Response(
-                {'detail': f'{user.username} is already an instructor.'},
+                {'detail': f'{user.username} is already an approved instructor.'},
                 status=status.HTTP_200_OK
             )
         user.role = 'INSTRUCTOR'
-        user.is_approved_instructor = True
+        profile = user.instructor_profile
+        profile.is_approved_instructor = True
+        profile.save()
         user.save()
         return Response(
             {'detail': f'{user.username} has been approved as an instructor.'},
@@ -78,9 +126,10 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         """Demote a user back to STUDENT (reject their instructor application)."""
         user = self.get_object()
         user.role = 'STUDENT'
-        # Clear expertise so they no longer appear as a pending application
-        user.expertise = ''
-        user.is_approved_instructor = False
+        profile = user.instructor_profile
+        profile.expertise = ''
+        profile.is_approved_instructor = False
+        profile.save()
         user.save()
         return Response(
             {'detail': f'{user.username} application has been rejected.'},
@@ -148,22 +197,23 @@ class AdminStatsView(APIView):
         revenue_this_month = revenue_this_month_aggr['total'] if revenue_this_month_aggr['total'] is not None else 0
 
         # ── Pending instructor applications ──────────────────────────────────
-        pending_instructors_qs = User.objects.filter(
-            role='STUDENT',
+        from .models import InstructorProfile
+        pending_apps_qs = InstructorProfile.objects.filter(
+            user__role='STUDENT',
             expertise__isnull=False
-        ).exclude(expertise='').order_by('-date_joined')[:20]
+        ).exclude(expertise='').select_related('user').order_by('-user__date_joined')[:20]
 
         pending_instructors = [
             {
-                'id': u.id,
-                'username': u.username,
-                'email': u.email,
-                'expertise': u.expertise,
-                'years_of_experience': u.years_of_experience,
-                'education_level': u.education_level,
-                'date_joined': u.date_joined.strftime('%b %d, %Y') if u.date_joined else ''
+                'id': p.user.id,
+                'username': p.user.username,
+                'email': p.user.email,
+                'expertise': p.expertise,
+                'years_of_experience': p.years_of_experience,
+                'education_level': p.education_level,
+                'date_joined': p.user.date_joined.strftime('%b %d, %Y') if p.user.date_joined else ''
             }
-            for u in pending_instructors_qs
+            for p in pending_apps_qs
         ]
 
         # ── Recent users ─────────────────────────────────────────────────────

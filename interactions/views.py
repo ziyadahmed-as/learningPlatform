@@ -67,8 +67,8 @@ class LessonProgressViewSet(viewsets.ModelViewSet):
             progress.completed_at = timezone.now()
             progress.save()
             # Add scholarly points for node completion
-            user.points += 10
-            user.save(update_fields=['points'])
+            user.student_profile.points += 10
+            user.student_profile.save(update_fields=['points'])
 
         return Response({'detail': 'Lesson marked as completed.', 'points_earned': 10})
 

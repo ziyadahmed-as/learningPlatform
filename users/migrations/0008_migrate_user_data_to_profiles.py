@@ -1,3 +1,5 @@
+from django.db import migrations
+
 def migrate_data(apps, schema_editor):
     User = apps.get_model('users', 'User')
     Profile = apps.get_model('users', 'Profile')

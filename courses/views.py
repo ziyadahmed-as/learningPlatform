@@ -209,7 +209,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         
         # Real counts
         actual_students = User.objects.filter(role='STUDENT').count()
-        actual_instructors = User.objects.filter(role='INSTRUCTOR', is_approved_instructor=True).count()
+        actual_instructors = User.objects.filter(role='INSTRUCTOR', instructor_profile__is_approved_instructor=True).count()
         actual_courses = Course.objects.filter(is_approved=True).count()
         
         # Structure as requested with base offsets
