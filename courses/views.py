@@ -203,7 +203,7 @@ class CourseViewSet(viewsets.ModelViewSet):
             
         return Response({'monthly_data': monthly_data})
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def platform_stats(self, request):
         from users.models import User
         
@@ -220,7 +220,7 @@ class CourseViewSet(viewsets.ModelViewSet):
             'courses_count': 12000 + actual_courses,
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def popular(self, request):
         courses = Course.objects.filter(is_approved=True).order_by('-views_count')[:12]
         serializer = self.get_serializer(courses, many=True)
