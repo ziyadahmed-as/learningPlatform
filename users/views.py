@@ -65,41 +65,15 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        # Restriction: ADMIN cannot create SUPER_ADMIN or other ADMINS
-        requested_role = serializer.validated_data.get('role')
-        if self.request.user.role == 'ADMIN' and requested_role in ['ADMIN', 'SUPER_ADMIN']:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You do not have permission to create accounts with administrative roles.")
+        # Admin can now create other admins as requested
         serializer.save()
 
     def perform_update(self, serializer):
-        user_to_update = self.get_object()
-        current_admin = self.request.user
-        requested_role = serializer.validated_data.get('role')
-
-        # Restriction: ADMIN cannot modify ADMIN or SUPER_ADMIN
-        if current_admin.role == 'ADMIN':
-            if user_to_update.role in ['ADMIN', 'SUPER_ADMIN']:
-                from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("You do not have permission to modify other administrative accounts.")
-            
-            if requested_role in ['ADMIN', 'SUPER_ADMIN']:
-                from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("You do not have permission to promote users to administrative roles.")
-
+        # Admin can now modify any role
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
-        user_to_delete = self.get_object()
-        current_admin = request.user
-
-        # Restriction: ADMIN cannot delete ADMIN or SUPER_ADMIN
-        if current_admin.role == 'ADMIN' and user_to_delete.role in ['ADMIN', 'SUPER_ADMIN']:
-            return Response(
-                {'detail': "You do not have permission to delete administrative accounts."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        # Admin can delete any account
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUserRole])

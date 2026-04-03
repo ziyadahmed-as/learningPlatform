@@ -6,32 +6,6 @@ from .models import Profile, InstructorProfile, StudentProfile
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
-    bio = serializers.CharField(source='profile.bio', allow_blank=True, required=False)
-    profile_picture = serializers.ImageField(source='profile.profile_picture', required=False, allow_null=True)
-    
-    # Instructor fields
-    expertise = serializers.CharField(source='instructor_profile.expertise', allow_blank=True, required=False)
-    education_level = serializers.CharField(source='instructor_profile.education_level', allow_blank=True, required=False)
-    years_of_experience = serializers.IntegerField(source='instructor_profile.years_of_experience', required=False)
-    cv_file = serializers.FileField(source='instructor_profile.cv_file', required=False, allow_null=True)
-    linkedin = serializers.URLField(source='instructor_profile.linkedin', allow_blank=True, required=False)
-    portfolio = serializers.URLField(source='instructor_profile.portfolio', allow_blank=True, required=False)
-    proposed_courses = serializers.CharField(source='instructor_profile.proposed_courses', allow_blank=True, required=False)
-    is_approved_instructor = serializers.BooleanField(source='instructor_profile.is_approved_instructor', read_only=True)
-    
-    # Student fields
-    points = serializers.IntegerField(source='student_profile.points', read_only=True)
-
-    class Meta:
-        model = User
-        fields = (
-            'id', 'username', 'email', 'role', 'is_superuser', 'bio', 'profile_picture', 
-            'first_name', 'last_name', 'expertise', 'education_level', 
-            'years_of_experience', 'linkedin', 'portfolio', 
-            'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 'signal_strength', 'peer_ranking'
-        )
-        read_only_fields = ('id', 'role', 'is_superuser', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
-
     signal_strength = serializers.SerializerMethodField()
     peer_ranking = serializers.SerializerMethodField()
 
@@ -50,6 +24,16 @@ class UserSerializer(serializers.ModelSerializer):
         rank_percent = int((better_users / total_users) * 100)
         if rank_percent < 1: return "TOP 1%"
         return f"TOP {rank_percent}%"
+
+    class Meta:
+        model = User
+        fields = (
+            'id', 'username', 'email', 'role', 'is_superuser', 'bio', 'profile_picture', 
+            'first_name', 'last_name', 'expertise', 'education_level', 
+            'years_of_experience', 'linkedin', 'portfolio', 
+            'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 'signal_strength', 'peer_ranking'
+        )
+        read_only_fields = ('id', 'role', 'is_superuser', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
 
     def update(self, instance, validated_data):
         profile_data = validated_data.pop('profile', {})
@@ -159,6 +143,9 @@ class AdminUserSerializer(serializers.ModelSerializer):
     proposed_courses = serializers.CharField(source='instructor_profile.proposed_courses', allow_blank=True, required=False)
     is_approved_instructor = serializers.BooleanField(source='instructor_profile.is_approved_instructor', required=False)
     points = serializers.IntegerField(source='student_profile.points', required=False)
+    
+    enrolled_courses = serializers.SerializerMethodField()
+    taught_courses = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -166,9 +153,22 @@ class AdminUserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'password', 'role', 'bio', 
             'profile_picture', 'first_name', 'last_name', 'expertise', 
             'education_level', 'years_of_experience', 'linkedin', 
-            'portfolio', 'proposed_courses', 'cv_file', 'is_approved_instructor', 'points'
+            'portfolio', 'proposed_courses', 'cv_file', 'is_approved_instructor', 'points',
+            'enrolled_courses', 'taught_courses'
         )
-        read_only_fields = ('id',)
+        read_only_fields = ('id', 'enrolled_courses', 'taught_courses')
+
+    def get_enrolled_courses(self, obj):
+        if obj.role != 'STUDENT':
+            return []
+        # Return list of course titles the student is enrolled in
+        return list(obj.registry_enrollments.values_list('course__title', flat=True))
+
+    def get_taught_courses(self, obj):
+        if obj.role != 'INSTRUCTOR':
+            return []
+        # Return list of course titles the instructor has created
+        return list(obj.curated_content.values_list('title', flat=True))
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
