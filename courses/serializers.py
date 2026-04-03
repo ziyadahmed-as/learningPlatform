@@ -3,9 +3,11 @@ from .models import Category, Course, Chapter, Lesson, ContentBlock, LiveStream,
 from interactions.models import Enrollment, LessonProgress
 
 class CategorySerializer(serializers.ModelSerializer):
+    node_count = serializers.IntegerField(source='nodes.count', read_only=True)
+    
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug']
+        fields = ['id', 'name', 'slug', 'description', 'node_count']
 
 class ContentBlockSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,6 +42,7 @@ class CourseSerializer(serializers.ModelSerializer):
     chapters = ChapterSerializer(many=True, read_only=True)
     instructor_name = serializers.ReadOnlyField(source='instructor.username')
     category_name = serializers.ReadOnlyField(source='category.name')
+    category_slug = serializers.ReadOnlyField(source='category.slug')
     is_enrolled = serializers.SerializerMethodField()
     enrollment_count = serializers.SerializerMethodField()
     completion_percentage = serializers.SerializerMethodField()
@@ -50,7 +53,7 @@ class CourseSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'slug', 'course_type', 'description', 'price', 
             'thumbnail', 'promo_video',
-            'instructor', 'instructor_name', 'category', 'category_name',
+            'instructor', 'instructor_name', 'category', 'category_name', 'category_slug',
             'created_at', 'updated_at', 'is_published', 'is_approved', 'is_submitted',
             'views_count', 'has_certificate', 'chapters', 'is_enrolled', 'rating',
             'enrollment_count', 'completion_percentage',
@@ -99,6 +102,7 @@ class LiveStreamSerializer(serializers.ModelSerializer):
     course_name = serializers.ReadOnlyField(source='course.title')
     live_sessions = LiveSessionSerializer(many=True, read_only=True)
     is_enrolled = serializers.SerializerMethodField()
+    enrollment_count = serializers.SerializerMethodField()
 
     class Meta:
         model = LiveStream
@@ -106,7 +110,7 @@ class LiveStreamSerializer(serializers.ModelSerializer):
             'id', 'course', 'course_name', 'instructor', 'instructor_name',
             'title', 'description', 'group_type', 'max_students',
             'scheduled_at', 'meeting_link', 'price', 'is_active', 'created_at',
-            'live_sessions', 'is_enrolled'
+            'live_sessions', 'is_enrolled', 'enrollment_count'
         ]
         read_only_fields = ['max_students', 'created_at']
         extra_kwargs = {
@@ -119,3 +123,7 @@ class LiveStreamSerializer(serializers.ModelSerializer):
             from interactions.models import LiveStreamEnrollment
             return LiveStreamEnrollment.objects.filter(student=request.user, live_stream=obj).exists()
         return False
+
+    def get_enrollment_count(self, obj):
+        from interactions.models import LiveStreamEnrollment
+        return LiveStreamEnrollment.objects.filter(live_stream=obj).count()
