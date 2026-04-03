@@ -78,3 +78,20 @@ class LiveStreamEnrollment(BaseModel):
 
     def __str__(self):
         return f'{self.student.username} synced to Live Stream {self.live_stream.title}'
+
+class InstructorReview(BaseModel):
+    """
+    Students rate instructors after finishing live sessions.
+    """
+    instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='instructor_reviews')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='given_instructor_reviews')
+    live_stream = models.ForeignKey('courses.LiveStream', on_delete=models.CASCADE, related_name='instructor_reviews')
+    rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)], db_index=True)
+    comment = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('instructor', 'student', 'live_stream')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Review for {self.instructor.username} by {self.student.username}'

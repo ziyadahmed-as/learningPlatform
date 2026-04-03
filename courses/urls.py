@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CategoryViewSet, CourseViewSet, ChapterViewSet, 
-    ContentBlockViewSet, LessonViewSet, LiveStreamViewSet
+    ContentBlockViewSet, LessonViewSet, LiveStreamViewSet,
+    LiveSessionViewSet
 )
 
 router = DefaultRouter()
@@ -12,6 +13,7 @@ router.register(r'chapters', ChapterViewSet)
 router.register(r'lessons', LessonViewSet)
 router.register(r'content-blocks', ContentBlockViewSet)
 router.register(r'live-streams', LiveStreamViewSet, basename='live-stream')
+router.register(r'live-sessions', LiveSessionViewSet, basename='live-session')
 
 urlpatterns = [
     path('', include(router.urls)),

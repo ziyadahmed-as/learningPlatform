@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Course, Chapter, Lesson, ContentBlock, LiveStream
+from .models import Category, Course, Chapter, Lesson, ContentBlock, LiveStream, LiveSession
 from interactions.models import Enrollment, LessonProgress
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -10,7 +10,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class ContentBlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentBlock
-        fields = ['id', 'lesson', 'title', 'type', 'text_content', 'file', 'url', 'order']
+        fields = ['id', 'lesson', 'live_session', 'title', 'type', 'text_content', 'file', 'url', 'order']
 
 class LessonSerializer(serializers.ModelSerializer):
     content_blocks = ContentBlockSerializer(many=True, read_only=True)
@@ -20,7 +20,7 @@ class LessonSerializer(serializers.ModelSerializer):
         model = Lesson
         fields = [
             'id', 'chapter', 'title', 'description', 'order', 
-            'content_blocks', 'is_completed', 'meeting_link', 'live_at'
+            'content_blocks', 'is_completed', 'duration', 'is_preview'
         ]
 
     def get_is_completed(self, obj):
@@ -87,18 +87,35 @@ class CourseSerializer(serializers.ModelSerializer):
         ).count()
         return round((completed / (enrollment_count * total_lessons)) * 100, 1)
 
+class LiveSessionSerializer(serializers.ModelSerializer):
+    content_blocks = ContentBlockSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = LiveSession
+        fields = ['id', 'live_stream', 'title', 'description', 'scheduled_at', 'meeting_link', 'content_blocks']
+
 class LiveStreamSerializer(serializers.ModelSerializer):
     instructor_name = serializers.ReadOnlyField(source='instructor.username')
     course_name = serializers.ReadOnlyField(source='course.title')
+    live_sessions = LiveSessionSerializer(many=True, read_only=True)
+    is_enrolled = serializers.SerializerMethodField()
 
     class Meta:
         model = LiveStream
         fields = [
             'id', 'course', 'course_name', 'instructor', 'instructor_name',
             'title', 'description', 'group_type', 'max_students',
-            'scheduled_at', 'meeting_link', 'price', 'is_active', 'created_at'
+            'scheduled_at', 'meeting_link', 'price', 'is_active', 'created_at',
+            'live_sessions', 'is_enrolled'
         ]
         read_only_fields = ['max_students', 'created_at']
         extra_kwargs = {
             'instructor': {'required': False}
         }
+
+    def get_is_enrolled(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from interactions.models import LiveStreamEnrollment
+            return LiveStreamEnrollment.objects.filter(student=request.user, live_stream=obj).exists()
+        return False

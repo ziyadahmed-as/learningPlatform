@@ -2,12 +2,12 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import (
-    Category, Course, Chapter, Lesson, ContentBlock, LiveStream
+    Category, Course, Chapter, Lesson, ContentBlock, LiveStream, LiveSession
 )
-from interactions.models import Enrollment, LessonProgress
+from interactions.models import Enrollment, LessonProgress, LiveStreamEnrollment, InstructorReview
 from .serializers import (
     CategorySerializer, CourseSerializer, ChapterSerializer,
-    LessonSerializer, ContentBlockSerializer, LiveStreamSerializer
+    LessonSerializer, ContentBlockSerializer, LiveStreamSerializer, LiveSessionSerializer
 )
 from django.db.models import Sum
 from ai.services import AIService
@@ -41,6 +41,10 @@ class IsAdminOrInstructorOrReadOnly(permissions.BasePermission):
             return obj.chapter.course.instructor == request.user
         if hasattr(obj, 'lesson'):
             return obj.lesson.chapter.course.instructor == request.user
+        if hasattr(obj, 'live_stream'):
+            return obj.live_stream.instructor == request.user
+        if hasattr(obj, 'live_session'):
+            return obj.live_session.live_stream.instructor == request.user
         return False
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -266,3 +270,62 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
             serializer.save()
         else:
             serializer.save(instructor=user)
+
+    @action(detail=True, methods=['post'])
+    def enroll(self, request, pk=None):
+        live_stream = self.get_object()
+        user = request.user
+        
+        if LiveStreamEnrollment.objects.filter(live_stream=live_stream).count() >= live_stream.max_students:
+            return Response({'detail': 'Live stream is full.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        enrollment, created = LiveStreamEnrollment.objects.get_or_create(student=user, live_stream=live_stream)
+        if not created:
+            return Response({'detail': 'Already enrolled.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        return Response({'detail': 'Enrolled successfully.'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOnly])
+    def duplicate(self, request, pk=None):
+        live_stream = self.get_object()
+        new_instructor_id = request.data.get('instructor_id')
+        import copy
+        new_stream = copy.copy(live_stream)
+        new_stream.id = None
+        new_stream.pk = None
+        new_stream.title = f"{live_stream.title} (Clone)"
+        if new_instructor_id:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                new_stream.instructor = User.objects.get(id=new_instructor_id)
+            except User.DoesNotExist:
+                return Response({'detail': 'Invalid instructor ID.'}, status=400)
+        new_stream.save()
+        return Response(LiveStreamSerializer(new_stream).data)
+
+    @action(detail=True, methods=['post'])
+    def rate_instructor(self, request, pk=None):
+        live_stream = self.get_object()
+        user = request.user
+        rating = request.data.get('rating')
+        comment = request.data.get('comment', '')
+        
+        if not rating:
+            return Response({'detail': 'Rating is required.'}, status=400)
+            
+        if not LiveStreamEnrollment.objects.filter(student=user, live_stream=live_stream).exists():
+            return Response({'detail': 'You must be enrolled to rate the instructor.'}, status=403)
+            
+        review, created = InstructorReview.objects.update_or_create(
+            instructor=live_stream.instructor,
+            student=user,
+            live_stream=live_stream,
+            defaults={'rating': int(rating), 'comment': comment}
+        )
+        return Response({'detail': 'Rating submitted.'})
+
+class LiveSessionViewSet(viewsets.ModelViewSet):
+    queryset = LiveSession.objects.all()
+    serializer_class = LiveSessionSerializer
+    permission_classes = [IsAdminOrInstructorOrReadOnly]

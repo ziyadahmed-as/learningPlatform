@@ -83,7 +83,7 @@ class LiveSession(BaseModel):
     """
     Daily/scheduled session for Live Stream Courses.
     """
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='live_sessions')
+    live_stream = models.ForeignKey('LiveStream', on_delete=models.CASCADE, related_name='live_sessions')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     scheduled_at = models.DateTimeField()
@@ -93,7 +93,7 @@ class LiveSession(BaseModel):
         ordering = ['scheduled_at']
 
     def __str__(self):
-        return f"{self.title} - {self.course.title}"
+        return f"{self.title} - {self.live_stream.title}"
 
 class ContentBlock(models.Model):
     """
