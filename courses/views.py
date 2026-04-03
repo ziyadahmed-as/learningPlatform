@@ -260,9 +260,26 @@ class LessonViewSet(viewsets.ModelViewSet):
         return Response({'quiz': quiz})
 
 class LiveStreamViewSet(viewsets.ModelViewSet):
-    queryset = LiveStream.objects.all()
     serializer_class = LiveStreamSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = LiveStream.objects.all().select_related('instructor').prefetch_related('live_sessions')
+
+        if not user.is_authenticated:
+            return qs
+
+        is_enrolled_filter = self.request.query_params.get('enrolled', 'false') == 'true'
+        is_mine_filter = self.request.query_params.get('mine', 'false') == 'true'
+
+        if is_enrolled_filter:
+            return qs.filter(enrollments__student=user)
+        
+        if is_mine_filter:
+            return qs.filter(instructor=user)
+
+        return qs
 
     def perform_create(self, serializer):
         user = self.request.user
