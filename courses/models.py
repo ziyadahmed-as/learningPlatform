@@ -3,14 +3,8 @@ from django.conf import settings
 from core.models import BaseModel
 
 class Category(BaseModel):
-    class CategoryType(models.TextChoices):
-        TECH_SKILL = 'TECH_SKILL', 'Tech Skill'
-        SOFT_SKILL = 'SOFT_SKILL', 'Soft Skill'
-        LIVE_TUTORIAL = 'LIVE_TUTORIAL', 'Live Tutorial'
-
     name = models.CharField(max_length=100, db_index=True)
     slug = models.SlugField(max_length=100, unique=True)
-    category_type = models.CharField(max_length=30, choices=CategoryType.choices, default=CategoryType.TECH_SKILL, db_index=True)
 
     class Meta:
         verbose_name_plural = 'categories'
@@ -22,8 +16,13 @@ class Course(BaseModel):
     """
     Primary Knowledge Node in the institutional registry.
     """
+    class CourseType(models.TextChoices):
+        VIDEO_BASED = 'VIDEO_BASED', 'Video-Based Course'
+        LIVE_STREAM = 'LIVE_STREAM', 'Live Stream Course'
+
     title = models.CharField(max_length=200, db_index=True)
     slug = models.SlugField(max_length=200, unique=True)
+    course_type = models.CharField(max_length=30, choices=CourseType.choices, default=CourseType.VIDEO_BASED, db_index=True)
     description = models.TextField()
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='curated_content')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='nodes')
@@ -69,6 +68,7 @@ class Lesson(BaseModel):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     
+    # Video duration
     duration = models.PositiveIntegerField(default=0)  # in seconds
     is_preview = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0, db_index=True)
@@ -79,11 +79,25 @@ class Lesson(BaseModel):
     def __str__(self):
         return f'{self.chapter.title} - {self.title}'
 
+class LiveSession(BaseModel):
+    """
+    Daily/scheduled session for Live Stream Courses.
+    """
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='live_sessions')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    scheduled_at = models.DateTimeField()
+    meeting_link = models.URLField(max_length=500, blank=True, null=True)
+
+    class Meta:
+        ordering = ['scheduled_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.course.title}"
+
 class ContentBlock(models.Model):
     """
-    Specific data artifact in high-fidelity lesson nodes.
-    No need for BaseModel here to keep memory footprint low; 
-    parent lesson tracks time.
+    Specific data artifact in high-fidelity lesson nodes or live sessions.
     """
     class BlockType(models.TextChoices):
         TEXT = 'text', 'Text (Word/Tiptap)'
@@ -94,7 +108,7 @@ class ContentBlock(models.Model):
         LINK = 'link', 'Research Link'
 
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks', null=True, blank=True)
-    live_session = models.ForeignKey('LiveSession', on_delete=models.CASCADE, related_name='content_blocks', null=True, blank=True)
+    live_session = models.ForeignKey(LiveSession, on_delete=models.CASCADE, related_name='content_blocks', null=True, blank=True)
     title = models.CharField(max_length=200, blank=True)
     type = models.CharField(max_length=15, choices=BlockType.choices, default=BlockType.TEXT)
     text_content = models.TextField(blank=True)
@@ -106,7 +120,8 @@ class ContentBlock(models.Model):
         ordering = ['order']
 
     def __str__(self):
-        return f'[{self.type.upper()}] Artifact {self.order} - {self.lesson.title}'
+        owner = self.lesson.title if self.lesson else (self.live_session.title if self.live_session else "Unassigned")
+        return f'[{self.type.upper()}] Artifact {self.order} - {owner}'
 
 class LiveStream(BaseModel):
     """
@@ -116,6 +131,7 @@ class LiveStream(BaseModel):
         VVIP = 'VVIP', 'VVIP (1 Student)'
         VIP1 = 'VIP1', 'VIP1 (5 Students)'
         VIP2 = 'VIP2', 'VIP2 (10 Students)'
+        NORMAL = 'NORMAL', 'Normal (100 Students)'
     
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='live_streams', null=True, blank=True)
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assigned_streams')
@@ -132,7 +148,8 @@ class LiveStream(BaseModel):
         capacity_map = {
             self.GroupType.VVIP: 1, 
             self.GroupType.VIP1: 5, 
-            self.GroupType.VIP2: 10
+            self.GroupType.VIP2: 10,
+            self.GroupType.NORMAL: 100
         }
         return capacity_map.get(self.group_type, 5)
 
@@ -141,21 +158,3 @@ class LiveStream(BaseModel):
 
     def __str__(self):
         return f"{self.title} ({self.group_type}) - {self.instructor.username}"
-
-class LiveSession(BaseModel):
-    """
-    Scheduled class for a LiveTutorial course.
-    """
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='live_sessions')
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    scheduled_at = models.DateTimeField(db_index=True)
-    duration = models.PositiveIntegerField(default=60) # in minutes
-    meeting_link = models.URLField(max_length=500, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['scheduled_at']
-
-    def __str__(self):
-        return f"{self.course.title} - {self.title} at {self.scheduled_at}"

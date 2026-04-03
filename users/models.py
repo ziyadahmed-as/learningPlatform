@@ -37,7 +37,13 @@ class Profile(models.Model):
         return f"Profile of {self.user.username}"
 
 class InstructorProfile(models.Model):
+    class InstructorType(models.TextChoices):
+        VIDEO_CREATOR = 'VIDEO_CREATOR', 'Video Creator'
+        LIVE_STREAMER = 'LIVE_STREAMER', 'Live Streamer'
+        BOTH = 'BOTH', 'Both'
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='instructor_profile')
+    instructor_type = models.CharField(max_length=20, choices=InstructorType.choices, default=InstructorType.VIDEO_CREATOR)
     expertise = models.CharField(max_length=255, blank=True, null=True)
     education_level = models.CharField(max_length=255, blank=True, null=True)
     years_of_experience = models.PositiveIntegerField(default=0)
