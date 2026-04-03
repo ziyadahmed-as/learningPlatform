@@ -52,10 +52,13 @@ class CourseSerializer(serializers.ModelSerializer):
             'thumbnail', 'promo_video',
             'instructor', 'instructor_name', 'category', 'category_name',
             'created_at', 'updated_at', 'is_published', 'is_approved', 'is_submitted',
-            'views_count', 'chapters', 'is_enrolled', 'rating',
+            'views_count', 'has_certificate', 'chapters', 'is_enrolled', 'rating',
             'enrollment_count', 'completion_percentage',
         ]
-        read_only_fields = ['instructor', 'is_approved', 'views_count']
+        read_only_fields = ['is_approved', 'views_count']
+        extra_kwargs = {
+            'instructor': {'required': False}
+        }
 
     def get_rating(self, obj):
         reviews = obj.node_reviews.all() # Corrected related name if needed, check model
@@ -95,4 +98,7 @@ class LiveStreamSerializer(serializers.ModelSerializer):
             'title', 'description', 'group_type', 'max_students',
             'scheduled_at', 'meeting_link', 'price', 'is_active', 'created_at'
         ]
-        read_only_fields = ['instructor', 'max_students', 'created_at']
+        read_only_fields = ['max_students', 'created_at']
+        extra_kwargs = {
+            'instructor': {'required': False}
+        }

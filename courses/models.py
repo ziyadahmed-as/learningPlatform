@@ -3,8 +3,14 @@ from django.conf import settings
 from core.models import BaseModel
 
 class Category(BaseModel):
+    class CategoryType(models.TextChoices):
+        TECH_SKILL = 'TECH_SKILL', 'Tech Skill'
+        SOFT_SKILL = 'SOFT_SKILL', 'Soft Skill'
+        LIVE_TUTORIAL = 'LIVE_TUTORIAL', 'Live Tutorial'
+
     name = models.CharField(max_length=100, db_index=True)
     slug = models.SlugField(max_length=100, unique=True)
+    category_type = models.CharField(max_length=30, choices=CategoryType.choices, default=CategoryType.TECH_SKILL, db_index=True)
 
     class Meta:
         verbose_name_plural = 'categories'
@@ -16,14 +22,8 @@ class Course(BaseModel):
     """
     Primary Knowledge Node in the institutional registry.
     """
-    class CourseType(models.TextChoices):
-        LIVE_TUTORIAL = 'LIVE_TUTORIAL', 'Live Tutorial Hub'
-        HARD_SKILL_RECORDED = 'HARD_SKILL_RECORDED', 'Hard Skill (Pre-recorded Adaptive)'
-        SOFT_SKILL = 'SOFT_SKILL', 'Soft Skill Mastery'
-
     title = models.CharField(max_length=200, db_index=True)
     slug = models.SlugField(max_length=200, unique=True)
-    course_type = models.CharField(max_length=30, choices=CourseType.choices, default=CourseType.HARD_SKILL_RECORDED, db_index=True)
     description = models.TextField()
     instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='curated_content')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='nodes')
@@ -34,6 +34,7 @@ class Course(BaseModel):
     is_approved = models.BooleanField(default=False, db_index=True)
     is_submitted = models.BooleanField(default=False)
     views_count = models.PositiveIntegerField(default=0)
+    has_certificate = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']
@@ -68,10 +69,6 @@ class Lesson(BaseModel):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     
-    # Behavioral artifacts
-    meeting_link = models.URLField(max_length=500, blank=True, null=True)
-    live_at = models.DateTimeField(blank=True, null=True, db_index=True)
-    
     duration = models.PositiveIntegerField(default=0)  # in seconds
     is_preview = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0, db_index=True)
@@ -96,7 +93,8 @@ class ContentBlock(models.Model):
         VIDEO_LINK = 'video_link', 'External Signal View'
         LINK = 'link', 'Research Link'
 
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks')
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks', null=True, blank=True)
+    live_session = models.ForeignKey('LiveSession', on_delete=models.CASCADE, related_name='content_blocks', null=True, blank=True)
     title = models.CharField(max_length=200, blank=True)
     type = models.CharField(max_length=15, choices=BlockType.choices, default=BlockType.TEXT)
     text_content = models.TextField(blank=True)
@@ -143,3 +141,21 @@ class LiveStream(BaseModel):
 
     def __str__(self):
         return f"{self.title} ({self.group_type}) - {self.instructor.username}"
+
+class LiveSession(BaseModel):
+    """
+    Scheduled class for a LiveTutorial course.
+    """
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='live_sessions')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    scheduled_at = models.DateTimeField(db_index=True)
+    duration = models.PositiveIntegerField(default=60) # in minutes
+    meeting_link = models.URLField(max_length=500, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['scheduled_at']
+
+    def __str__(self):
+        return f"{self.course.title} - {self.title} at {self.scheduled_at}"

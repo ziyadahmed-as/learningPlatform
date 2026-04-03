@@ -75,7 +75,11 @@ class CourseViewSet(viewsets.ModelViewSet):
         return qs.filter(is_approved=True)
 
     def perform_create(self, serializer):
-        serializer.save(instructor=self.request.user)
+        user = self.request.user
+        if is_admin(user) and serializer.validated_data.get('instructor'):
+            serializer.save()
+        else:
+            serializer.save(instructor=user)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -257,4 +261,8 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(instructor=self.request.user)
+        user = self.request.user
+        if is_admin(user) and serializer.validated_data.get('instructor'):
+            serializer.save()
+        else:
+            serializer.save(instructor=user)
