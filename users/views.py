@@ -14,10 +14,13 @@ class MyTokenObtainView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
 
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (permissions.AllowAny,)
     serializer_class = RegisterSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
