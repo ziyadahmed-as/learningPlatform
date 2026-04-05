@@ -9,6 +9,23 @@ class UserSerializer(serializers.ModelSerializer):
     signal_strength = serializers.SerializerMethodField()
     peer_ranking = serializers.SerializerMethodField()
 
+    # Fields sourced from related Profile model
+    bio = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
+
+    # Fields sourced from related InstructorProfile model
+    expertise = serializers.SerializerMethodField()
+    education_level = serializers.SerializerMethodField()
+    years_of_experience = serializers.SerializerMethodField()
+    linkedin = serializers.SerializerMethodField()
+    portfolio = serializers.SerializerMethodField()
+    proposed_courses = serializers.SerializerMethodField()
+    cv_file = serializers.SerializerMethodField()
+    is_approved_instructor = serializers.SerializerMethodField()
+
+    # Fields sourced from related StudentProfile model
+    points = serializers.SerializerMethodField()
+
     def get_signal_strength(self, obj):
         return "100%" if obj.is_active else "0%"
 
@@ -18,19 +35,98 @@ class UserSerializer(serializers.ModelSerializer):
             return "TOP 1%"
         try:
             points = obj.student_profile.points
-        except:
+        except Exception:
             points = 0
         better_users = User.objects.filter(student_profile__points__gt=points).count()
         rank_percent = int((better_users / total_users) * 100)
-        if rank_percent < 1: return "TOP 1%"
+        if rank_percent < 1:
+            return "TOP 1%"
         return f"TOP {rank_percent}%"
+
+    def get_bio(self, obj):
+        try:
+            return obj.profile.bio or ""
+        except Exception:
+            return ""
+
+    def get_profile_picture(self, obj):
+        try:
+            pic = obj.profile.profile_picture
+            if pic:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(pic.url)
+                return pic.url
+            return None
+        except Exception:
+            return None
+
+    def get_expertise(self, obj):
+        try:
+            return obj.instructor_profile.expertise or ""
+        except Exception:
+            return ""
+
+    def get_education_level(self, obj):
+        try:
+            return obj.instructor_profile.education_level or ""
+        except Exception:
+            return ""
+
+    def get_years_of_experience(self, obj):
+        try:
+            return obj.instructor_profile.years_of_experience
+        except Exception:
+            return 0
+
+    def get_linkedin(self, obj):
+        try:
+            return obj.instructor_profile.linkedin or ""
+        except Exception:
+            return ""
+
+    def get_portfolio(self, obj):
+        try:
+            return obj.instructor_profile.portfolio or ""
+        except Exception:
+            return ""
+
+    def get_proposed_courses(self, obj):
+        try:
+            return obj.instructor_profile.proposed_courses or ""
+        except Exception:
+            return ""
+
+    def get_cv_file(self, obj):
+        try:
+            cv = obj.instructor_profile.cv_file
+            if cv:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(cv.url)
+                return cv.url
+            return None
+        except Exception:
+            return None
+
+    def get_is_approved_instructor(self, obj):
+        try:
+            return obj.instructor_profile.is_approved_instructor
+        except Exception:
+            return False
+
+    def get_points(self, obj):
+        try:
+            return obj.student_profile.points
+        except Exception:
+            return 0
 
     class Meta:
         model = User
         fields = (
-            'id', 'username', 'email', 'role', 'is_superuser', 'bio', 'profile_picture', 
-            'first_name', 'last_name', 'expertise', 'education_level', 
-            'years_of_experience', 'linkedin', 'portfolio', 
+            'id', 'username', 'email', 'role', 'is_superuser', 'bio', 'profile_picture',
+            'first_name', 'last_name', 'expertise', 'education_level',
+            'years_of_experience', 'linkedin', 'portfolio',
             'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 'signal_strength', 'peer_ranking'
         )
         read_only_fields = ('id', 'role', 'is_superuser', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
