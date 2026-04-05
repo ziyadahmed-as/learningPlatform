@@ -241,17 +241,17 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
     
-    bio = serializers.CharField(source='profile.bio', allow_blank=True, required=False)
-    profile_picture = serializers.ImageField(source='profile.profile_picture', required=False, allow_null=True)
-    expertise = serializers.CharField(source='instructor_profile.expertise', allow_blank=True, required=False)
-    education_level = serializers.CharField(source='instructor_profile.education_level', allow_blank=True, required=False)
-    years_of_experience = serializers.IntegerField(source='instructor_profile.years_of_experience', required=False)
-    cv_file = serializers.FileField(source='instructor_profile.cv_file', required=False, allow_null=True)
-    linkedin = serializers.URLField(source='instructor_profile.linkedin', allow_blank=True, required=False)
-    portfolio = serializers.URLField(source='instructor_profile.portfolio', allow_blank=True, required=False)
-    proposed_courses = serializers.CharField(source='instructor_profile.proposed_courses', allow_blank=True, required=False)
-    is_approved_instructor = serializers.BooleanField(source='instructor_profile.is_approved_instructor', required=False)
-    points = serializers.IntegerField(source='student_profile.points', required=False)
+    bio = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
+    expertise = serializers.SerializerMethodField()
+    education_level = serializers.SerializerMethodField()
+    years_of_experience = serializers.SerializerMethodField()
+    cv_file = serializers.SerializerMethodField()
+    linkedin = serializers.SerializerMethodField()
+    portfolio = serializers.SerializerMethodField()
+    proposed_courses = serializers.SerializerMethodField()
+    is_approved_instructor = serializers.SerializerMethodField()
+    points = serializers.SerializerMethodField()
     
     enrolled_courses = serializers.SerializerMethodField()
     taught_courses = serializers.SerializerMethodField()
@@ -270,14 +270,96 @@ class AdminUserSerializer(serializers.ModelSerializer):
     def get_enrolled_courses(self, obj):
         if obj.role != 'STUDENT':
             return []
-        # Return list of course titles the student is enrolled in
-        return list(obj.registry_enrollments.values_list('course__title', flat=True))
+        try:
+            return list(obj.registry_enrollments.values_list('course__title', flat=True))
+        except Exception:
+            return []
 
     def get_taught_courses(self, obj):
         if obj.role != 'INSTRUCTOR':
             return []
-        # Return list of course titles the instructor has created
-        return list(obj.curated_content.values_list('title', flat=True))
+        try:
+            return list(obj.curated_content.values_list('title', flat=True))
+        except Exception:
+            return []
+
+    def get_bio(self, obj):
+        try:
+            return obj.profile.bio or ""
+        except Exception:
+            return ""
+
+    def get_profile_picture(self, obj):
+        try:
+            pic = obj.profile.profile_picture
+            if pic:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(pic.url)
+                return pic.url
+            return None
+        except Exception:
+            return None
+
+    def get_expertise(self, obj):
+        try:
+            return obj.instructor_profile.expertise or ""
+        except Exception:
+            return ""
+
+    def get_education_level(self, obj):
+        try:
+            return obj.instructor_profile.education_level or ""
+        except Exception:
+            return ""
+
+    def get_years_of_experience(self, obj):
+        try:
+            return obj.instructor_profile.years_of_experience
+        except Exception:
+            return 0
+
+    def get_cv_file(self, obj):
+        try:
+            cv = obj.instructor_profile.cv_file
+            if cv:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(cv.url)
+                return cv.url
+            return None
+        except Exception:
+            return None
+
+    def get_linkedin(self, obj):
+        try:
+            return obj.instructor_profile.linkedin or ""
+        except Exception:
+            return ""
+
+    def get_portfolio(self, obj):
+        try:
+            return obj.instructor_profile.portfolio or ""
+        except Exception:
+            return ""
+
+    def get_proposed_courses(self, obj):
+        try:
+            return obj.instructor_profile.proposed_courses or ""
+        except Exception:
+            return ""
+
+    def get_is_approved_instructor(self, obj):
+        try:
+            return obj.instructor_profile.is_approved_instructor
+        except Exception:
+            return False
+
+    def get_points(self, obj):
+        try:
+            return obj.student_profile.points
+        except Exception:
+            return 0
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
