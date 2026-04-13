@@ -13,12 +13,6 @@ class PlatformChatView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        if not os.getenv('OPENAI_API_KEY'):
-            return Response(
-                {"error": "AI services are currently unavailable. Missing API Key."}, 
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
-            
         query = request.data.get('query')
         if not query:
             return Response({"error": "Query is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -40,9 +34,6 @@ class AssistantCourseDescriptionView(APIView):
     def post(self, request):
         if request.user.role not in ['INSTRUCTOR', 'ADMIN'] and not request.user.is_superuser:
             return Response({"error": "Only instructors can generate course descriptions"}, status=status.HTTP_403_FORBIDDEN)
-
-        if not os.getenv('OPENAI_API_KEY'):
-            return Response({"error": "AI services unavailable."}, status=503)
 
         title = request.data.get('title')
         audience = request.data.get('audience', '')
