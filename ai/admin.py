@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import KnowledgeDocument
+from ai.models import KnowledgeDocument
 
 
 @admin.register(KnowledgeDocument)
