@@ -5,6 +5,8 @@ from rest_framework import status
 from django.conf import settings
 import os
 from .services import AIService
+from courses.serializers import CourseSerializer
+
 
 class PlatformChatView(APIView):
     """
