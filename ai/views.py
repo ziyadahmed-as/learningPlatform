@@ -1,10 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework import status
+from rest_framework import status, viewsets, permissions
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.conf import settings
 import os
 from .services import AIService
+from .models import KnowledgeDocument
+from .serializers import KnowledgeDocumentSerializer
 from courses.serializers import CourseSerializer
 
 
@@ -113,3 +116,36 @@ class CourseRecommendationView(APIView):
         if force_refresh:
             AIService._recommendation_index = None  # Clear cache
         return self.get(request)
+
+
+class IsAdminUser(permissions.BasePermission):
+    """Only allow admin / superuser access."""
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.role in ('ADMIN', 'SUPER_ADMIN') or request.user.is_superuser
+        )
+
+
+class KnowledgeDocumentViewSet(viewsets.ModelViewSet):
+    """
+    Admin-only CRUD for knowledge-base documents.
+    Uploaded files are automatically indexed by the platform chatbot RAG.
+    """
+    queryset = KnowledgeDocument.objects.all()
+    serializer_class = KnowledgeDocumentSerializer
+    permission_classes = [IsAdminUser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+        # Clear RAG cache so the new document is indexed on next chat
+        AIService._vectorstore = None
+
+    def perform_update(self, serializer):
+        serializer.save()
+        AIService._vectorstore = None
+
+    def perform_destroy(self, instance):
+        instance.file.delete(save=False)  # Clean up the actual file
+        instance.delete()
+        AIService._vectorstore = None
