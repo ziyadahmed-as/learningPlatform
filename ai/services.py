@@ -8,10 +8,17 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain.docstore.document import Document
 import json
+
+# For dynamic RAG indexing
+from django.apps import apps
+
 
 class AIService:
     _vectorstore = None
+    _course_vectorstores = {} # Cache for course-specific RAG
+
 
     @classmethod
     def initialize_rag(cls):
@@ -41,6 +48,58 @@ class AIService:
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
         cls._vectorstore = FAISS.from_documents(docs, embeddings)
         return cls._vectorstore
+
+    @classmethod
+    def initialize_course_rag(cls, course_id):
+        """Initializes a specific vector store for a course."""
+        if course_id in cls._course_vectorstores:
+            return cls._course_vectorstores[course_id]
+
+        Course = apps.get_model('courses', 'Course')
+        Lesson = apps.get_model('courses', 'Lesson')
+        ContentBlock = apps.get_model('courses', 'ContentBlock')
+
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return None
+
+        documents = []
+        
+        # Add course description
+        documents.append(Document(
+            page_content=f"Course: {course.title}\nDescription: {course.description}",
+            metadata={"source": "course_description", "course_id": course_id}
+        ))
+
+        # Add chapter and lesson titles/descriptions
+        lessons = Lesson.objects.filter(chapter__course_id=course_id)
+        for lesson in lessons:
+            content = f"Chapter: {lesson.chapter.title}\nLesson: {lesson.title}\nDescription: {lesson.description}"
+            documents.append(Document(
+                page_content=content,
+                metadata={"source": "lesson_info", "lesson_id": lesson.id}
+            ))
+            
+            # Add text content blocks
+            blocks = ContentBlock.objects.filter(lesson=lesson, type='text')
+            for block in blocks:
+                if block.text_content:
+                    # Clean simple HTML tags if present
+                    import re
+                    clean_text = re.sub('<[^<]+?>', '', block.text_content)
+                    documents.append(Document(
+                        page_content=f"Content from Lesson '{lesson.title}':\n{clean_text}",
+                        metadata={"source": "content_block", "block_id": block.id}
+                    ))
+
+        if not documents:
+            return None
+
+        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        vectorstore = FAISS.from_documents(documents, embeddings)
+        cls._course_vectorstores[course_id] = vectorstore
+        return vectorstore
 
     @classmethod
     def get_platform_chat_response(cls, query):
@@ -138,10 +197,39 @@ class AIService:
         return response.content
 
     @classmethod
-    def get_learning_assistant_response(cls, query, context=""):
+    def get_learning_assistant_response(cls, query, context="", course_id=None):
         """Contextual learning assistant for students enrolled in courses."""
         llm = ChatOllama(model="llama3", temperature=0.7)
         
+        # Try RAG if course_id is provided
+        if course_id:
+            vectorstore = cls.initialize_course_rag(course_id)
+            if vectorstore:
+                system_prompt = (
+                    "You are a dedicated Learning Assistant for a student. "
+                    "Use the following pieces of context from the course to answer the student's question. "
+                    "If you don't know the answer based on the context, answer using your general knowledge "
+                    "but stay within the domain of the course material.\n\n"
+                    "{context}"
+                )
+                
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", system_prompt),
+                    ("human", "{input}"),
+                ])
+
+                question_answer_chain = create_stuff_documents_chain(llm, prompt)
+                rag_chain = create_retrieval_chain(vectorstore.as_retriever(), question_answer_chain)
+                
+                # Combine manual context if provided
+                input_data = {"input": query}
+                if context:
+                    input_data["input"] = f"Context: {context}\n\nQuestion: {query}"
+                
+                result = rag_chain.invoke(input_data)
+                return result['answer']
+
+        # Fallback to simple zero-shot if no RAG or it failed
         prompt_text = (
             "You are a dedicated Learning Assistant for a student. "
             f"Given this specific context from the course: '{context}', "

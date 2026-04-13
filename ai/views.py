@@ -96,13 +96,14 @@ class LearningAssistantView(APIView):
 
     def post(self, request):
         query = request.data.get('query')
-        context = request.data.get('context', '') # Course or lesson context
+        context = request.data.get('context', '') # Manual course or lesson context
+        course_id = request.data.get('course_id') # For dynamic RAG indexing
 
         if not query:
             return Response({"error": "Query required"}, status=400)
 
         try:
-            response = AIService.get_learning_assistant_response(query, context)
+            response = AIService.get_learning_assistant_response(query, context, course_id)
             return Response({"response": response})
         except Exception as e:
             return Response({"error": str(e)}, status=500)
