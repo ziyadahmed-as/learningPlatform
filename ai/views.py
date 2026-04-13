@@ -87,3 +87,29 @@ class LearningAssistantView(APIView):
             return Response({"response": response})
         except Exception as e:
             return Response({"error": str(e)}, status=500)
+
+
+class CourseRecommendationView(APIView):
+    """
+    Returns AI-powered course recommendations for the authenticated student,
+    based on semantic similarity to their current enrollments.
+    Supports ?limit=N query param (default 5).
+    Supports POST with { "force_refresh": true } to rebuild the catalog index.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        limit = int(request.query_params.get('limit', 5))
+        try:
+            courses = AIService.get_course_recommendations(request.user, limit=limit)
+            serializer = CourseSerializer(courses, many=True, context={'request': request})
+            return Response({'recommendations': serializer.data})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+    def post(self, request):
+        """Allow POST so the frontend can trigger a catalog index refresh."""
+        force_refresh = request.data.get('force_refresh', False)
+        if force_refresh:
+            AIService._recommendation_index = None  # Clear cache
+        return self.get(request)
