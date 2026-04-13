@@ -48,28 +48,6 @@ class AssistantCourseDescriptionView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 
-class GenerateQuizView(APIView):
-    """
-    Automated quiz generation for instructors based on course topics.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        if request.user.role not in ['INSTRUCTOR', 'ADMIN'] and not request.user.is_superuser:
-            return Response({"error": "Only instructors can generate quizzes"}, status=403)
-
-        topic = request.data.get('topic')
-        count = request.data.get('count', 5)
-        difficulty = request.data.get('difficulty', 'medium')
-
-        if not topic:
-            return Response({"error": "Topic required"}, status=400)
-
-        try:
-            quiz = AIService.generate_quiz(topic, count, difficulty)
-            return Response({"quiz": quiz})
-        except Exception as e:
-            return Response({"error": str(e)}, status=500)
 
 class SummarizeContentView(APIView):
     """

@@ -152,30 +152,6 @@ class AIService:
         response = llm.invoke(messages)
         return response.content
 
-    @classmethod
-    def generate_quiz(cls, topic, count=5, difficulty='medium'):
-        """Generates a quiz based on a topic."""
-        llm = ChatOllama(model="llama3", temperature=0.7)
-        
-        prompt_text = (
-            f"Generate a quiz with {count} multiple-choice questions on the topic: '{topic}'. "
-            f"Difficulty level: {difficulty}. "
-            "Format the response as a JSON list of objects, each having: "
-            "'question', 'options' (a list of 4 strings), and 'correct_answer' (one of the options)."
-        )
-        
-        messages = [
-            SystemMessage(content="You are an expert educational assessment creator."),
-            HumanMessage(content=prompt_text)
-        ]
-        
-        response = llm.invoke(messages)
-        try:
-            # Clean response if it contains markdown formatting
-            content = response.content.replace('```json', '').replace('```', '').strip()
-            return json.loads(content)
-        except:
-            return response.content
 
     @classmethod
     def summarize_content(cls, content):

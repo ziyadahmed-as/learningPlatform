@@ -249,15 +249,6 @@ class LessonViewSet(viewsets.ModelViewSet):
     serializer_class = LessonSerializer
     permission_classes = [IsAdminOrInstructorOrReadOnly]
 
-    @action(detail=True, methods=['post'], url_path='generate-ai-quiz')
-    def generate_ai_quiz(self, request, pk=None):
-        """AI tool for instructors to generate a quiz for this lesson."""
-        lesson = self.get_object()
-        count = request.data.get('count', 5)
-        difficulty = request.data.get('difficulty', 'medium')
-        
-        quiz = AIService.generate_quiz(lesson.title, count, difficulty)
-        return Response({'quiz': quiz})
 
 class LiveStreamViewSet(viewsets.ModelViewSet):
     serializer_class = LiveStreamSerializer
