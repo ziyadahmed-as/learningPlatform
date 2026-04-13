@@ -142,29 +142,50 @@ class AIService:
 
     @classmethod
     def initialize_rag(cls):
-        """Initializes the vector store with platform information."""
+        """Initializes the vector store with all platform documents (md, txt, pdf)."""
         if cls._vectorstore:
             return cls._vectorstore
 
-        data_path = os.path.join(settings.BASE_DIR, 'ai', 'data', 'platform_info.md')
-        if not os.path.exists(data_path):
-            # Create a dummy platform info if it doesn't exist
-            os.makedirs(os.path.dirname(data_path), exist_ok=True)
-            with open(data_path, 'w', encoding='utf-8') as f:
-                f.write("# Platform Information\n\nWelcome to our professional learning platform.")
+        data_dir = os.path.join(settings.BASE_DIR, 'ai', 'data')
+        os.makedirs(data_dir, exist_ok=True)
 
-        # Load and split documents
-        loader = TextLoader(data_path, encoding='utf-8')
-        documents = loader.load()
+        # Ensure at least one file exists
+        default_file = os.path.join(data_dir, 'platform_info.md')
+        if not os.path.exists(default_file):
+            with open(default_file, 'w', encoding='utf-8') as f:
+                f.write("# Platform Information\n\nWelcome to Fatra Academy.")
+
+        # Load all supported files from the data directory
+        all_documents = []
+
+        for filename in os.listdir(data_dir):
+            filepath = os.path.join(data_dir, filename)
+            if not os.path.isfile(filepath):
+                continue
+
+            try:
+                if filename.endswith(('.md', '.txt')):
+                    loader = TextLoader(filepath, encoding='utf-8')
+                    all_documents.extend(loader.load())
+                elif filename.endswith('.pdf'):
+                    from langchain_community.document_loaders import PyPDFLoader
+                    loader = PyPDFLoader(filepath)
+                    all_documents.extend(loader.load())
+            except Exception as e:
+                print(f"[AIService] Warning: Could not load {filename}: {e}")
+
+        if not all_documents:
+            return None
+
+        # Split into chunks
         text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50, separator="\n")
-        docs = text_splitter.split_documents(documents)
-        
-        if not docs:
-            # Fallback if first split failed
-            text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=0, separator=" ")
-            docs = text_splitter.split_documents(documents)
+        docs = text_splitter.split_documents(all_documents)
 
-        # Create or load vectorstore
+        if not docs:
+            text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=0, separator=" ")
+            docs = text_splitter.split_documents(all_documents)
+
+        # Create vectorstore
         embeddings = OllamaEmbeddings(model="nomic-embed-text")
         cls._vectorstore = FAISS.from_documents(docs, embeddings)
         return cls._vectorstore
@@ -224,6 +245,8 @@ class AIService:
     @classmethod
     def get_platform_chat_response(cls, query):
         """Answers questions about the platform using RAG."""
+        # Force re-index so new platform_info.md content is always picked up
+        cls._vectorstore = None
         vectorstore = cls.initialize_rag()
         if not vectorstore:
             return "Platform information is currently unavailable."
@@ -231,11 +254,22 @@ class AIService:
         llm = ChatOllama(model="llama3", temperature=0.7)
         
         system_prompt = (
-            "You are a helpful assistant for this learning platform. "
-            "Use the following pieces of context to answer the user's question about the platform. "
-            "If you don't know the answer based on the context, say that you don't know. "
-            "Keep the answer concise and professional.\n\n"
-            "{context}"
+            "You are the Fatra Academy Assistant — a friendly, professional AI "
+            "representative for the Fatra Academy online learning platform. "
+            "Your job is to help anyone who visits the platform by answering "
+            "questions about our services, courses, pricing, enrollment process, "
+            "instructor onboarding, live streaming sessions, AI features, "
+            "payments, and anything else related to the platform.\n\n"
+            "Guidelines:\n"
+            "- Be warm, welcoming, and helpful.\n"
+            "- Use the provided context to give accurate answers.\n"
+            "- If the user asks about a specific course or category, encourage "
+            "them to browse our catalog or sign up.\n"
+            "- If you don't know something, say so honestly and suggest they "
+            "contact support.\n"
+            "- Keep answers concise but informative.\n"
+            "- Always end with an invitation to ask more questions.\n\n"
+            "Platform context:\n{context}"
         )
         
         prompt = ChatPromptTemplate.from_messages(
@@ -246,7 +280,8 @@ class AIService:
         )
 
         question_answer_chain = create_stuff_documents_chain(llm, prompt)
-        rag_chain = create_retrieval_chain(vectorstore.as_retriever(), question_answer_chain)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 6})
+        rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
         result = rag_chain.invoke({"input": query})
         return result['answer']
