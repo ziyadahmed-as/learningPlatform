@@ -142,7 +142,8 @@ class AIService:
 
     @classmethod
     def initialize_rag(cls):
-        """Initializes the vector store with all platform documents (md, txt, pdf)."""
+        """Initializes the vector store with all platform documents (md, txt, pdf)
+        from the filesystem AND admin-uploaded KnowledgeDocuments from the DB."""
         if cls._vectorstore:
             return cls._vectorstore
 
@@ -173,6 +174,34 @@ class AIService:
                     all_documents.extend(loader.load())
             except Exception as e:
                 print(f"[AIService] Warning: Could not load {filename}: {e}")
+
+        # ----- Load admin-uploaded KnowledgeDocuments from DB -----
+        try:
+            KnowledgeDocument = apps.get_model('ai', 'KnowledgeDocument')
+            for doc in KnowledgeDocument.objects.filter(is_active=True):
+                try:
+                    filepath = doc.file.path
+                    ext = doc.file_extension
+                    if ext in ('md', 'txt'):
+                        loader = TextLoader(filepath, encoding='utf-8')
+                        loaded = loader.load()
+                    elif ext == 'pdf':
+                        from langchain_community.document_loaders import PyPDFLoader
+                        loader = PyPDFLoader(filepath)
+                        loaded = loader.load()
+                    else:
+                        print(f"[AIService] Skipping unsupported format: {doc.filename}")
+                        continue
+
+                    # Tag each chunk with the document title for reference
+                    for page in loaded:
+                        page.metadata['knowledge_doc_id'] = doc.id
+                        page.metadata['knowledge_doc_title'] = doc.title
+                    all_documents.extend(loaded)
+                except Exception as e:
+                    print(f"[AIService] Warning: Could not load DB document '{doc.title}': {e}")
+        except Exception as e:
+            print(f"[AIService] Warning: Could not query KnowledgeDocument table: {e}")
 
         if not all_documents:
             return None
