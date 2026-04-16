@@ -1,8 +1,19 @@
+# Git
+.git
+.gitignore
+
+# Python
 __pycache__
 *.pyc
 *.pyo
+*.pyd
+.venv
+env
+vh
+
+# Env
 .env
-*.sqlite3
-/env
-/venv
-.git
+
+# Media
+media
+staticfiles
