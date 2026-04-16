@@ -22,11 +22,11 @@ RUN pip install --upgrade pip && \
 # Copy project
 COPY . /app/
 
-# Collect static files
-# RUN python manage.py collectstatic --noinput
+# Make entrypoint executable (handled during build since host is Windows)
+RUN chmod +x /app/entrypoint.sh
 
 # Expose port 8000
 EXPOSE 8000
 
-# Default command to run gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "Learning.wsgi:application"]
+# Set entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]

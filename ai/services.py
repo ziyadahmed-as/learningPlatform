@@ -57,7 +57,7 @@ class AIService:
             ))
             id_map.append(course.id)
 
-        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=settings.OLLAMA_BASE_URL)
         cls._recommendation_index = FAISS.from_documents(documents, embeddings)
         cls._recommendation_id_map = id_map
         return cls._recommendation_index
@@ -215,7 +215,7 @@ class AIService:
             docs = text_splitter.split_documents(all_documents)
 
         # Create vectorstore
-        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=settings.OLLAMA_BASE_URL)
         cls._vectorstore = FAISS.from_documents(docs, embeddings)
         return cls._vectorstore
 
@@ -266,7 +266,7 @@ class AIService:
         if not documents:
             return None
 
-        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=settings.OLLAMA_BASE_URL)
         vectorstore = FAISS.from_documents(documents, embeddings)
         cls._course_vectorstores[course_id] = vectorstore
         return vectorstore
@@ -280,7 +280,7 @@ class AIService:
         if not vectorstore:
             return "Platform information is currently unavailable."
 
-        llm = ChatOllama(model="llama3", temperature=0.7)
+        llm = ChatOllama(model="llama3", temperature=0.7, base_url=settings.OLLAMA_BASE_URL)
         
         system_prompt = (
             "You are the Fatra Academy Assistant — a friendly, professional AI "
@@ -318,7 +318,7 @@ class AIService:
     @classmethod
     def generate_course_description(cls, title, audience=None, keywords=None):
         """Generates a course description for instructors."""
-        llm = ChatOllama(model="llama3", temperature=0.8)
+        llm = ChatOllama(model="llama3", temperature=0.8, base_url=settings.OLLAMA_BASE_URL)
         
         prompt_text = f"Help me write a professional and engaging course description for a course titled '{title}'."
         if audience:
@@ -340,7 +340,7 @@ class AIService:
     @classmethod
     def summarize_content(cls, content):
         """Summarizes educational content for learners."""
-        llm = ChatOllama(model="llama3", temperature=0.5)
+        llm = ChatOllama(model="llama3", temperature=0.5, base_url=settings.OLLAMA_BASE_URL)
         
         prompt_text = (
             "Summarize the following educational content in a structured way using bullet points. "
@@ -359,7 +359,7 @@ class AIService:
     @classmethod
     def get_learning_assistant_response(cls, query, context="", course_id=None):
         """Contextual learning assistant for students enrolled in courses."""
-        llm = ChatOllama(model="llama3", temperature=0.7)
+        llm = ChatOllama(model="llama3", temperature=0.7, base_url=settings.OLLAMA_BASE_URL)
         
         # Try RAG if course_id is provided
         if course_id:
@@ -409,7 +409,7 @@ class AIService:
     @classmethod
     def generate_course_curriculum(cls, title):
         """Generates a suggested chapter and lesson structure for a course."""
-        llm = ChatOllama(model="llama3", temperature=0.7)
+        llm = ChatOllama(model="llama3", temperature=0.7, base_url=settings.OLLAMA_BASE_URL)
         
         prompt_text = (
             f"Generate a suggested curriculum for a course titled '{title}'. "
