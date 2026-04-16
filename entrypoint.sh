@@ -14,6 +14,6 @@ if [ $# -gt 0 ]; then
     echo "Executing command: $@"
     exec "$@"
 else
-    echo "Starting gunicorn with 3 workers..."
-    exec gunicorn --bind 0.0.0.0:8000 --workers 3 Learning.wsgi:application
+    echo "Starting uvicorn (via gunicorn) with 3 workers..."
+    exec gunicorn --bind 0.0.0.0:8000 --workers 3 -k uvicorn.workers.UvicornWorker Learning.asgi:application
 fi
