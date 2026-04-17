@@ -27,117 +27,52 @@ class AIService:
 
     @classmethod
     def initialize_recommendation_index(cls, force_refresh=False):
-        """
-        Builds (or returns cached) a FAISS index over all approved courses.
-        Each document encodes the course title, category, and description so
-        that semantic nearest-neighbour search reflects topical similarity.
-        """
+        """Builds cached FAISS index of all approved courses."""
         if cls._recommendation_index and not force_refresh:
             return cls._recommendation_index
-
+        
         Course = apps.get_model('courses', 'Course')
         courses = Course.objects.filter(is_approved=True).select_related('category')
+        if not courses.exists(): return None
 
-        if not courses.exists():
-            return None
-
-        documents = []
-        id_map = []
-
-        for course in courses:
-            category_name = course.category.name if course.category else 'General'
-            text = (
-                f"Title: {course.title}\n"
-                f"Category: {category_name}\n"
-                f"Description: {course.description}"
-            )
-            documents.append(Document(
-                page_content=text,
-                metadata={"course_id": course.id}
-            ))
-            id_map.append(course.id)
-
+        docs = [Document(
+            page_content=f"{c.title} {c.category.name if c.category else ''} {c.description}",
+            metadata={"course_id": c.id}
+        ) for c in courses]
+        
         embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=settings.OLLAMA_BASE_URL)
-        cls._recommendation_index = FAISS.from_documents(documents, embeddings)
-        cls._recommendation_id_map = id_map
+        cls._recommendation_index = FAISS.from_documents(docs, embeddings)
         return cls._recommendation_index
 
     @classmethod
-    def get_course_recommendations(cls, user, limit=5):
-        """
-        Returns a list of Course objects semantically similar to the courses
-        the student is already enrolled in, excluding those already enrolled.
-
-        Falls back to the most recently approved courses when the student has
-        no enrollments or the Ollama service is unavailable.
-        """
-        Course = apps.get_model('courses', 'Course')
-        Enrollment = apps.get_model('interactions', 'Enrollment')
-
-        enrolled_qs = Enrollment.objects.filter(student=user).select_related('course__category')
-        enrolled_ids = list(enrolled_qs.values_list('course_id', flat=True))
-
-        # Cold-start: student has no enrollments → return latest approved courses
-        if not enrolled_ids:
-            return list(
-                Course.objects.filter(is_approved=True)
-                .exclude(id__in=enrolled_ids)
-                .order_by('-created_at')[:limit]
-            )
+    def get_course_recommendations(cls, user, limit=5, force_refresh=False):
+        """Semantic course recommendations based on user enrollments."""
+        Course, Enrollment = apps.get_model('courses', 'Course'), apps.get_model('interactions', 'Enrollment')
+        enrolled_ids = list(Enrollment.objects.filter(student=user).values_list('course_id', flat=True))
+        base_qs = Course.objects.filter(is_approved=True).exclude(id__in=enrolled_ids)
 
         try:
-            index = cls.initialize_recommendation_index()
+            index = cls.initialize_recommendation_index(force_refresh)
+            if not index or not enrolled_ids:
+                return list(base_qs.order_by('-created_at')[:limit])
+
+            # Build query from enrollments
+            enrolled_qs = Course.objects.filter(id__in=enrolled_ids).select_related('category')
+            query = " ".join([f"{c.title} {c.category.name if c.category else ''} {c.description[:200]}" for c in enrolled_qs])
+            
+            res_ids = []
+            for d in index.similarity_search(query, k=limit + len(enrolled_ids)):
+                cid = d.metadata.get('course_id')
+                if cid and cid not in enrolled_ids and cid not in res_ids:
+                    res_ids.append(cid)
+                if len(res_ids) >= limit: break
+            
+            if not res_ids: return list(base_qs.order_by('-created_at')[:limit])
+            
+            from django.db.models import Case, When
+            return list(Course.objects.filter(id__in=res_ids).order_by(Case(*[When(id=i, then=p) for p, i in enumerate(res_ids)])))
         except Exception:
-            # Ollama unreachable – graceful degradation
-            index = None
-
-        if not index:
-            return list(
-                Course.objects.filter(is_approved=True)
-                .exclude(id__in=enrolled_ids)
-                .order_by('-created_at')[:limit]
-            )
-
-        # Build a combined query from all enrolled courses
-        query_parts = []
-        for enr in enrolled_qs:
-            c = enr.course
-            cat = c.category.name if c.category else ''
-            query_parts.append(f"{c.title} {cat} {c.description[:300]}")
-        query_text = " ".join(query_parts)
-
-        # Retrieve more than needed so we can filter out enrolled ones
-        fetch_k = limit + len(enrolled_ids) + 5
-        similar_docs = index.similarity_search(query_text, k=fetch_k)
-
-        # Collect recommended course ids (preserve relevance order)
-        seen = set()
-        recommended_ids = []
-        for doc in similar_docs:
-            cid = doc.metadata.get('course_id')
-            if cid and cid not in enrolled_ids and cid not in seen:
-                seen.add(cid)
-                recommended_ids.append(cid)
-            if len(recommended_ids) >= limit:
-                break
-
-        if not recommended_ids:
-            return list(
-                Course.objects.filter(is_approved=True)
-                .exclude(id__in=enrolled_ids)
-                .order_by('-created_at')[:limit]
-            )
-
-        # Preserve relevance ordering using a Case/When expression
-        from django.db.models import Case, When, IntegerField
-        preserved_order = Case(
-            *[When(id=cid, then=pos) for pos, cid in enumerate(recommended_ids)],
-            output_field=IntegerField()
-        )
-        return list(
-            Course.objects.filter(id__in=recommended_ids)
-            .order_by(preserved_order)
-        )
+            return list(base_qs.order_by('-created_at')[:limit])
 
 
     @classmethod
