@@ -26,13 +26,32 @@ class IsAdminOrInstructorOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
-        return request.user.is_authenticated and (request.user.role in ['ADMIN', 'INSTRUCTOR'] or request.user.is_superuser)
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser or request.user.role == 'ADMIN':
+            return True
+        if request.user.role == 'INSTRUCTOR':
+            # Check if instructor is approved by admin
+            try:
+                return request.user.instructor_profile.is_approved_instructor
+            except Exception:
+                return False
+        return False
 
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
         if is_admin(request.user):
             return True
+        
+        # Check if instructor is approved before allowing object modifications
+        if request.user.role == 'INSTRUCTOR':
+            try:
+                if not request.user.instructor_profile.is_approved_instructor:
+                    return False
+            except Exception:
+                return False
+
         if hasattr(obj, 'instructor'):
             return obj.instructor == request.user
         if hasattr(obj, 'course'):
