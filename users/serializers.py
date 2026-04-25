@@ -164,15 +164,18 @@ class RegisterSerializer(serializers.ModelSerializer):
     expertise = serializers.CharField(required=False, allow_blank=True)
     education_level = serializers.CharField(required=False, allow_blank=True)
     years_of_experience = serializers.IntegerField(required=False, default=0)
-    linkedin = serializers.URLField(required=False, allow_blank=True)
-    portfolio = serializers.URLField(required=False, allow_blank=True)
+    # Using CharField instead of URLField so blank strings from multipart/form-data
+    # don't trigger URL validation errors when the field is left empty.
+    linkedin = serializers.CharField(required=False, allow_blank=True)
+    portfolio = serializers.CharField(required=False, allow_blank=True)
     proposed_courses = serializers.CharField(required=False, allow_blank=True)
     cv_file = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = User
         fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name',
-                  'role', 'expertise', 'education_level', 'years_of_experience', 'bio', 
+                  'role',  # ← must be included so the chosen role (INSTRUCTOR/STUDENT) is persisted
+                  'expertise', 'education_level', 'years_of_experience', 'bio', 
                   'linkedin', 'portfolio', 'proposed_courses', 'cv_file')
 
     def validate(self, attrs):
@@ -183,8 +186,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password')
         validated_data.pop('password_confirm')
+        role = validated_data.get('role', 'STUDENT')
         
-        # Extract profile/instructor data
+        # Extract profile/instructor data before user creation
         bio = validated_data.pop('bio', '')
         expertise = validated_data.pop('expertise', '')
         education_level = validated_data.pop('education_level', '')
@@ -199,20 +203,22 @@ class RegisterSerializer(serializers.ModelSerializer):
             **validated_data
         )
         
-        # Update profiles (already created by signal)
+        # Update base profile (bio) for all users
         profile = user.profile
         profile.bio = bio
         profile.save()
         
-        instr_profile = user.instructor_profile
-        instr_profile.expertise = expertise
-        instr_profile.education_level = education_level
-        instr_profile.years_of_experience = years_of_experience
-        instr_profile.linkedin = linkedin
-        instr_profile.portfolio = portfolio
-        instr_profile.proposed_courses = proposed_courses
-        instr_profile.cv_file = cv_file
-        instr_profile.save()
+        # Only populate instructor-specific profile fields when registering as INSTRUCTOR
+        if role == 'INSTRUCTOR':
+            instr_profile = user.instructor_profile
+            instr_profile.expertise = expertise
+            instr_profile.education_level = education_level
+            instr_profile.years_of_experience = years_of_experience
+            instr_profile.linkedin = linkedin or ''
+            instr_profile.portfolio = portfolio or ''
+            instr_profile.proposed_courses = proposed_courses
+            instr_profile.cv_file = cv_file
+            instr_profile.save()
         
         return user
 
