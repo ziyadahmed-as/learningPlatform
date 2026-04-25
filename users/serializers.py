@@ -17,7 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
     expertise = serializers.SerializerMethodField()
     education_level = serializers.SerializerMethodField()
     years_of_experience = serializers.SerializerMethodField()
-    linkedin = serializers.SerializerMethodField()
+    website = serializers.SerializerMethodField()
     portfolio = serializers.SerializerMethodField()
     proposed_courses = serializers.SerializerMethodField()
     cv_file = serializers.SerializerMethodField()
@@ -79,9 +79,9 @@ class UserSerializer(serializers.ModelSerializer):
         except Exception:
             return 0
 
-    def get_linkedin(self, obj):
+    def get_website(self, obj):
         try:
-            return obj.instructor_profile.linkedin or ""
+            return obj.instructor_profile.website or ""
         except Exception:
             return ""
 
@@ -126,7 +126,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'email', 'role', 'is_superuser', 'bio', 'profile_picture',
             'first_name', 'last_name', 'expertise', 'education_level',
-            'years_of_experience', 'linkedin', 'portfolio',
+            'years_of_experience', 'website', 'portfolio',
             'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 'signal_strength', 'peer_ranking'
         )
         read_only_fields = ('id', 'role', 'is_superuser', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
@@ -166,7 +166,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     years_of_experience = serializers.IntegerField(required=False, default=0)
     # Using CharField instead of URLField so blank strings from multipart/form-data
     # don't trigger URL validation errors when the field is left empty.
-    linkedin = serializers.CharField(required=False, allow_blank=True)
+    website = serializers.CharField(required=False, allow_blank=True)
     portfolio = serializers.CharField(required=False, allow_blank=True)
     proposed_courses = serializers.CharField(required=False, allow_blank=True)
     cv_file = serializers.FileField(required=False, allow_null=True)
@@ -176,7 +176,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name',
                   'role',  # ← must be included so the chosen role (INSTRUCTOR/STUDENT) is persisted
                   'expertise', 'education_level', 'years_of_experience', 'bio', 
-                  'linkedin', 'portfolio', 'proposed_courses', 'cv_file')
+                  'website', 'portfolio', 'proposed_courses', 'cv_file')
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
@@ -193,7 +193,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         expertise = validated_data.pop('expertise', '')
         education_level = validated_data.pop('education_level', '')
         years_of_experience = validated_data.pop('years_of_experience', 0)
-        linkedin = validated_data.pop('linkedin', '')
+        website = validated_data.pop('website', '')
         portfolio = validated_data.pop('portfolio', '')
         proposed_courses = validated_data.pop('proposed_courses', '')
         cv_file = validated_data.pop('cv_file', None)
@@ -214,7 +214,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             instr_profile.expertise = expertise
             instr_profile.education_level = education_level
             instr_profile.years_of_experience = years_of_experience
-            instr_profile.linkedin = linkedin or ''
+            instr_profile.website = website or ''
             instr_profile.portfolio = portfolio or ''
             instr_profile.proposed_courses = proposed_courses
             instr_profile.cv_file = cv_file
@@ -257,7 +257,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
     education_level = serializers.CharField(required=False, allow_blank=True)
     years_of_experience = serializers.IntegerField(required=False, default=0)
     cv_file = serializers.SerializerMethodField()
-    linkedin = serializers.CharField(required=False, allow_blank=True)
+    website = serializers.CharField(required=False, allow_blank=True)
     portfolio = serializers.CharField(required=False, allow_blank=True)
     proposed_courses = serializers.CharField(required=False, allow_blank=True)
     
@@ -272,7 +272,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'email', 'password', 'role', 'bio', 
             'profile_picture', 'first_name', 'last_name', 'expertise', 
-            'education_level', 'years_of_experience', 'linkedin', 
+            'education_level', 'years_of_experience', 'website', 
             'portfolio', 'proposed_courses', 'cv_file', 'is_approved_instructor', 'points',
             'enrolled_courses', 'taught_courses'
         )
@@ -342,9 +342,9 @@ class AdminUserSerializer(serializers.ModelSerializer):
         except Exception:
             return None
 
-    def get_linkedin(self, obj):
+    def get_website(self, obj):
         try:
-            return obj.instructor_profile.linkedin or ""
+            return obj.instructor_profile.website or ""
         except Exception:
             return ""
 
@@ -403,7 +403,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         expertise = validated_data.pop('expertise', None)
         education_level = validated_data.pop('education_level', None)
         years_of_experience = validated_data.pop('years_of_experience', None)
-        linkedin = validated_data.pop('linkedin', None)
+        website = validated_data.pop('website', None)
         portfolio = validated_data.pop('portfolio', None)
         proposed_courses = validated_data.pop('proposed_courses', None)
         cv_file = validated_data.pop('cv_file', None)
@@ -424,7 +424,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         if expertise is not None: instr_updates['expertise'] = expertise
         if education_level is not None: instr_updates['education_level'] = education_level
         if years_of_experience is not None: instr_updates['years_of_experience'] = years_of_experience
-        if linkedin is not None: instr_updates['linkedin'] = linkedin
+        if website is not None: instr_updates['website'] = website
         if portfolio is not None: instr_updates['portfolio'] = portfolio
         if proposed_courses is not None: instr_updates['proposed_courses'] = proposed_courses
         if cv_file is not None: instr_updates['cv_file'] = cv_file

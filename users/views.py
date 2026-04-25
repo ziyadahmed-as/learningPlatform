@@ -189,6 +189,8 @@ class AdminStatsView(APIView):
                 'years_of_experience': p.years_of_experience,
                 'education_level': p.education_level,
                 'instructor_type': p.instructor_type,
+                'website': p.website,
+                'portfolio': p.portfolio,
                 'cv_file': request.build_absolute_uri(p.cv_file.url) if p.cv_file else None,
                 'date_joined': p.user.date_joined.strftime('%b %d, %Y') if p.user.date_joined else ''
             }
