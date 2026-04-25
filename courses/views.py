@@ -79,11 +79,16 @@ class CourseViewSet(viewsets.ModelViewSet):
         return qs.filter(is_approved=True)
 
     def perform_create(self, serializer):
+        from django.utils.text import slugify
+        import uuid
         user = self.request.user
+        title = serializer.validated_data.get('title', '')
+        slug = f"{slugify(title)}-{str(uuid.uuid4())[:8]}"
+        
         if is_admin(user) and serializer.validated_data.get('instructor'):
-            serializer.save()
+            serializer.save(slug=slug)
         else:
-            serializer.save(instructor=user)
+            serializer.save(instructor=user, slug=slug)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -160,8 +165,9 @@ class CourseViewSet(viewsets.ModelViewSet):
         total_views = courses.aggregate(total=Sum('views_count'))['total'] or 0
 
         # High-fidelity financial sync
-        wallet, _ = getattr(user, 'wallet_record', (None, None))
-        if not wallet:
+        try:
+            wallet = user.wallet_record
+        except Exception:
             from finance.models import Wallet
             wallet, _ = Wallet.objects.get_or_create(user=user)
 

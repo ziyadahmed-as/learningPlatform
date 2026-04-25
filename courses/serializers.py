@@ -58,7 +58,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'views_count', 'has_certificate', 'chapters', 'is_enrolled', 'rating',
             'enrollment_count', 'completion_percentage',
         ]
-        read_only_fields = ['is_approved', 'views_count']
+        read_only_fields = ['is_approved', 'views_count', 'slug']
         extra_kwargs = {
             'instructor': {'required': False}
         }
