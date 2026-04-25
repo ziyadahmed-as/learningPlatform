@@ -48,7 +48,7 @@ class InstructorProfile(models.Model):
     education_level = models.CharField(max_length=255, blank=True, null=True)
     years_of_experience = models.PositiveIntegerField(default=0)
     cv_file = models.FileField(upload_to='instructor_cvs/', blank=True, null=True)
-    linkedin = models.URLField(max_length=255, blank=True, null=True)
+    website = models.URLField(max_length=255, blank=True, null=True)
     portfolio = models.URLField(max_length=255, blank=True, null=True)
     proposed_courses = models.TextField(blank=True, null=True)
     is_approved_instructor = models.BooleanField(default=False)

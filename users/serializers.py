@@ -247,17 +247,22 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
     
-    bio = serializers.SerializerMethodField()
+    # Writable fields for admin
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
+    
+    bio = serializers.CharField(required=False, allow_blank=True)
     profile_picture = serializers.SerializerMethodField()
-    expertise = serializers.SerializerMethodField()
-    education_level = serializers.SerializerMethodField()
-    years_of_experience = serializers.SerializerMethodField()
+    expertise = serializers.CharField(required=False, allow_blank=True)
+    education_level = serializers.CharField(required=False, allow_blank=True)
+    years_of_experience = serializers.IntegerField(required=False, default=0)
     cv_file = serializers.SerializerMethodField()
-    linkedin = serializers.SerializerMethodField()
-    portfolio = serializers.SerializerMethodField()
-    proposed_courses = serializers.SerializerMethodField()
-    is_approved_instructor = serializers.SerializerMethodField()
-    points = serializers.SerializerMethodField()
+    linkedin = serializers.CharField(required=False, allow_blank=True)
+    portfolio = serializers.CharField(required=False, allow_blank=True)
+    proposed_courses = serializers.CharField(required=False, allow_blank=True)
+    
+    is_approved_instructor = serializers.BooleanField(required=False)
+    points = serializers.IntegerField(required=False, default=0)
     
     enrolled_courses = serializers.SerializerMethodField()
     taught_courses = serializers.SerializerMethodField()
@@ -393,9 +398,17 @@ class AdminUserSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
             
-        profile_data = validated_data.pop('profile', {})
-        instructor_data = validated_data.pop('instructor_profile', {})
-        student_data = validated_data.pop('student_profile', {})
+        # Extract profile fields
+        bio = validated_data.pop('bio', None)
+        expertise = validated_data.pop('expertise', None)
+        education_level = validated_data.pop('education_level', None)
+        years_of_experience = validated_data.pop('years_of_experience', None)
+        linkedin = validated_data.pop('linkedin', None)
+        portfolio = validated_data.pop('portfolio', None)
+        proposed_courses = validated_data.pop('proposed_courses', None)
+        cv_file = validated_data.pop('cv_file', None)
+        is_approved_instructor = validated_data.pop('is_approved_instructor', None)
+        points = validated_data.pop('points', None)
 
         # Update User
         for attr, value in validated_data.items():
@@ -403,11 +416,25 @@ class AdminUserSerializer(serializers.ModelSerializer):
         instance.save()
 
         # Update Profiles
-        if profile_data:
-            Profile.objects.filter(user=instance).update(**profile_data)
-        if instructor_data:
-            InstructorProfile.objects.filter(user=instance).update(**instructor_data)
-        if student_data:
-            StudentProfile.objects.filter(user=instance).update(**student_data)
+        if bio is not None:
+            Profile.objects.filter(user=instance).update(bio=bio)
+        
+        # Instructor Profile
+        instr_updates = {}
+        if expertise is not None: instr_updates['expertise'] = expertise
+        if education_level is not None: instr_updates['education_level'] = education_level
+        if years_of_experience is not None: instr_updates['years_of_experience'] = years_of_experience
+        if linkedin is not None: instr_updates['linkedin'] = linkedin
+        if portfolio is not None: instr_updates['portfolio'] = portfolio
+        if proposed_courses is not None: instr_updates['proposed_courses'] = proposed_courses
+        if cv_file is not None: instr_updates['cv_file'] = cv_file
+        if is_approved_instructor is not None: instr_updates['is_approved_instructor'] = is_approved_instructor
+        
+        if instr_updates:
+            InstructorProfile.objects.filter(user=instance).update(**instr_updates)
+
+        # Student Profile
+        if points is not None:
+            StudentProfile.objects.filter(user=instance).update(points=points)
 
         return instance
