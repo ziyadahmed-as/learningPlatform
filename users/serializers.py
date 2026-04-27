@@ -232,12 +232,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         # Try to find the user by email first if it looks like one
         if '@' in username_or_email:
-            try:
-                user = User.objects.get(email=username_or_email)
+            # Handle cases where multiple users might share an email
+            user = User.objects.filter(email=username_or_email).first()
+            if user:
                 # If found, set the 'username' to the actual username for the standard auth logic
                 attrs['username'] = user.username
-            except User.DoesNotExist:
-                pass # Default logic will handle it (and likely return 401)
                 
         data = super().validate(attrs)
         # Add user data to response
