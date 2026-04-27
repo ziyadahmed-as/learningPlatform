@@ -178,7 +178,7 @@ class AdminStatsView(APIView):
         pending_apps_qs = InstructorProfile.objects.filter(
             user__role='STUDENT',
             expertise__isnull=False
-        ).exclude(expertise='').select_related('user').order_by('-user__date_joined')[:20]
+        ).exclude(expertise='').select_related('user').order_by('-user__date_joined')[:50]
 
         pending_instructors = [
             {
@@ -197,8 +197,22 @@ class AdminStatsView(APIView):
             for p in pending_apps_qs
         ]
 
+        # ── Recent payments (ledger) ─────────────────────────────────────────
+        recent_payments_qs = Payment.objects.filter(is_successful=True).select_related('enrollment__student', 'enrollment__course').order_by('-created_at')[:10]
+        recent_payments = [
+            {
+                'id': f"TX-{p.id}",
+                'subject': p.enrollment.course.title if p.enrollment.course else 'Course Access',
+                'student': p.enrollment.student.username,
+                'amount': float(p.amount),
+                'timestamp': p.created_at.strftime('%Y.%m.%d'),
+                'status': 'Confirmed'
+            }
+            for p in recent_payments_qs
+        ]
+
         # ── Recent users ─────────────────────────────────────────────────────
-        recent_users_qs = User.objects.all().order_by('-date_joined')[:10]
+        recent_users_qs = User.objects.all().order_by('-date_joined')[:50]
         recent_users = [
             {
                 'id': u.id,
@@ -284,5 +298,6 @@ class AdminStatsView(APIView):
             'monthly_growth': monthly_data,
             'category_distribution': category_data,
             'top_courses': top_courses,
+            'recent_payments': recent_payments,
         })
  
