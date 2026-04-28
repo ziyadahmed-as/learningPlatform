@@ -1,0 +1,150 @@
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from .models import Profile, InstructorProfile, StudentProfile
+
+User = get_user_model()
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
+    
+    # These map to properties on the User model
+    bio = serializers.CharField(required=False, allow_blank=True)
+    expertise = serializers.CharField(required=False, allow_blank=True)
+    education_level = serializers.CharField(required=False, allow_blank=True)
+    years_of_experience = serializers.IntegerField(required=False, default=0)
+    website = serializers.CharField(required=False, allow_blank=True)
+    portfolio = serializers.CharField(required=False, allow_blank=True)
+    proposed_courses = serializers.CharField(required=False, allow_blank=True)
+    is_approved_instructor = serializers.BooleanField(required=False)
+    points = serializers.IntegerField(required=False, default=0)
+    
+    # Files and lists still use MethodFields for complex representation
+    profile_picture = serializers.SerializerMethodField()
+    cv_file = serializers.SerializerMethodField()
+    enrolled_courses = serializers.SerializerMethodField()
+    taught_courses = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            'id', 'username', 'email', 'password', 'role', 'bio', 
+            'profile_picture', 'first_name', 'last_name', 'expertise', 
+            'education_level', 'years_of_experience', 'website', 
+            'portfolio', 'proposed_courses', 'cv_file', 'is_approved_instructor', 'points',
+            'enrolled_courses', 'taught_courses'
+        )
+        read_only_fields = ('id', 'enrolled_courses', 'taught_courses')
+
+    def get_profile_picture(self, obj):
+        try:
+            pic = obj.profile.profile_picture
+            if pic:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(pic.url)
+                return pic.url
+            return None
+        except Exception:
+            return None
+
+    def get_cv_file(self, obj):
+        try:
+            cv = obj.instructor_profile.cv_file
+            if cv:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(cv.url)
+                return cv.url
+            return None
+        except Exception:
+            return None
+
+    def get_enrolled_courses(self, obj):
+        if obj.role != 'STUDENT':
+            return []
+        try:
+            return list(obj.registry_enrollments.values_list('course__title', flat=True))
+        except Exception:
+            return []
+
+    def get_taught_courses(self, obj):
+        if obj.role != 'INSTRUCTOR':
+            return []
+        try:
+            return list(obj.curated_content.values_list('title', flat=True))
+        except Exception:
+            return []
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        if not password:
+            raise serializers.ValidationError({"password": "This field is required for creation."})
+        
+        # Pop profile fields
+        bio = validated_data.pop('bio', None)
+        expertise = validated_data.pop('expertise', None)
+        education_level = validated_data.pop('education_level', None)
+        years_of_experience = validated_data.pop('years_of_experience', None)
+        website = validated_data.pop('website', None)
+        portfolio = validated_data.pop('portfolio', None)
+        proposed_courses = validated_data.pop('proposed_courses', None)
+        is_approved_instructor = validated_data.pop('is_approved_instructor', None)
+        points = validated_data.pop('points', None)
+
+        user = User.objects.create_user(password=password, **validated_data)
+        
+        # Update profiles (they are auto-created by signals)
+        if bio is not None: Profile.objects.filter(user=user).update(bio=bio)
+        
+        instr_updates = {}
+        if expertise is not None: instr_updates['expertise'] = expertise
+        if education_level is not None: instr_updates['education_level'] = education_level
+        if years_of_experience is not None: instr_updates['years_of_experience'] = years_of_experience
+        if website is not None: instr_updates['website'] = website
+        if portfolio is not None: instr_updates['portfolio'] = portfolio
+        if proposed_courses is not None: instr_updates['proposed_courses'] = proposed_courses
+        if is_approved_instructor is not None: instr_updates['is_approved_instructor'] = is_approved_instructor
+        if instr_updates: InstructorProfile.objects.filter(user=user).update(**instr_updates)
+
+        if points is not None: StudentProfile.objects.filter(user=user).update(points=points)
+            
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+            
+        # Extract profile fields
+        bio = validated_data.pop('bio', None)
+        expertise = validated_data.pop('expertise', None)
+        education_level = validated_data.pop('education_level', None)
+        years_of_experience = validated_data.pop('years_of_experience', None)
+        website = validated_data.pop('website', None)
+        portfolio = validated_data.pop('portfolio', None)
+        proposed_courses = validated_data.pop('proposed_courses', None)
+        is_approved_instructor = validated_data.pop('is_approved_instructor', None)
+        points = validated_data.pop('points', None)
+
+        # Update User
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Update Profiles
+        if bio is not None: Profile.objects.filter(user=instance).update(bio=bio)
+        
+        instr_updates = {}
+        if expertise is not None: instr_updates['expertise'] = expertise
+        if education_level is not None: instr_updates['education_level'] = education_level
+        if years_of_experience is not None: instr_updates['years_of_experience'] = years_of_experience
+        if website is not None: instr_updates['website'] = website
+        if portfolio is not None: instr_updates['portfolio'] = portfolio
+        if proposed_courses is not None: instr_updates['proposed_courses'] = proposed_courses
+        if is_approved_instructor is not None: instr_updates['is_approved_instructor'] = is_approved_instructor
+        if instr_updates: InstructorProfile.objects.filter(user=instance).update(**instr_updates)
+
+        if points is not None: StudentProfile.objects.filter(user=instance).update(points=points)
+
+        return instance

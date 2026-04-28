@@ -25,6 +25,51 @@ class User(AbstractUser):
             
         super().save(*args, **kwargs)
 
+    @property
+    def bio(self):
+        try: return self.profile.bio
+        except: return ""
+
+    @property
+    def expertise(self):
+        try: return self.instructor_profile.expertise
+        except: return ""
+
+    @property
+    def education_level(self):
+        try: return self.instructor_profile.education_level
+        except: return ""
+
+    @property
+    def years_of_experience(self):
+        try: return self.instructor_profile.years_of_experience
+        except: return 0
+
+    @property
+    def website(self):
+        try: return self.instructor_profile.website
+        except: return ""
+
+    @property
+    def portfolio(self):
+        try: return self.instructor_profile.portfolio
+        except: return ""
+
+    @property
+    def proposed_courses(self):
+        try: return self.instructor_profile.proposed_courses
+        except: return ""
+
+    @property
+    def is_approved_instructor(self):
+        try: return self.instructor_profile.is_approved_instructor
+        except: return False
+
+    @property
+    def points(self):
+        try: return self.student_profile.points
+        except: return 0
+
     def __str__(self):
         return self.username
 

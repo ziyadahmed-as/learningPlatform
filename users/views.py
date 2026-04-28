@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
 
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import RegisterSerializer, UserSerializer, AdminUserSerializer, MyTokenObtainPairSerializer
@@ -120,10 +121,17 @@ class AdminStatsView(APIView):
     """
     Platform-wide analytics for the admin dashboard.
     Returns users, courses, revenue, growth charts, recent activity.
+    Uses caching for scalability.
     """
     permission_classes = [IsAdminUserRole]
 
     def get(self, request, *args, **kwargs):
+        # Try to get from cache first for professional speed
+        cache_key = 'admin_dashboard_stats'
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+
         import calendar
         from courses.models import Course, Category
         from interactions.models import Enrollment
@@ -272,7 +280,7 @@ class AdminStatsView(APIView):
             for c in top_courses_qs
         ]
 
-        return Response({
+        response_data = {
             'users': {
                 'total': total_users,
                 'students': students,
@@ -299,5 +307,10 @@ class AdminStatsView(APIView):
             'category_distribution': category_data,
             'top_courses': top_courses,
             'recent_payments': recent_payments,
-        })
+        }
+
+        # Cache the result for 15 minutes
+        cache.set(cache_key, response_data, 900)
+
+        return Response(response_data)
  
