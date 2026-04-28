@@ -178,6 +178,18 @@ class RegisterSerializer(serializers.ModelSerializer):
                   'expertise', 'education_level', 'years_of_experience', 'bio', 
                   'website', 'portfolio', 'proposed_courses', 'cv_file')
 
+    def validate_username(self, value):
+        if User.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        return value
+
+    def validate_email(self, value):
+        if not value:
+            raise serializers.ValidationError("Email is required.")
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with this email address already exists.")
+        return value.lower()
+
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
@@ -244,7 +256,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 class AdminUserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
+    # No validate_password validator here — we do it manually in validate()
+    # so that an empty string (on update = "don't change") doesn't trigger it.
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     # Writable fields for admin
     first_name = serializers.CharField(required=False, allow_blank=True)
@@ -434,10 +448,46 @@ class AdminUserSerializer(serializers.ModelSerializer):
         except Exception:
             return 0
 
+    def validate_username(self, value):
+        instance = self.instance  # None on create, User obj on update
+        qs = User.objects.filter(username__iexact=value)
+        if instance:
+            qs = qs.exclude(pk=instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        return value
+
+    def validate_email(self, value):
+        # Email is required on create but optional on update
+        if not value and not self.instance:
+            raise serializers.ValidationError("Email is required.")
+        if value:
+            instance = self.instance
+            qs = User.objects.filter(email__iexact=value)
+            if instance:
+                qs = qs.exclude(pk=instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError("A user with this email address already exists.")
+            return value.lower()
+        return value
+
+    def validate(self, attrs):
+        password = attrs.get('password', '')
+        # On create, password is required
+        if not self.instance and not password:
+            raise serializers.ValidationError({"password": "Password is required when creating a user."})
+        # If a password is provided (create or update), validate its strength
+        if password:
+            from django.contrib.auth.password_validation import validate_password as _vp
+            from django.core.exceptions import ValidationError as DjValidationError
+            try:
+                _vp(password)
+            except DjValidationError as e:
+                raise serializers.ValidationError({"password": list(e.messages)})
+        return attrs
+
     def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        if not password:
-            raise serializers.ValidationError({"password": "This field is required for creation."})
+        password = validated_data.pop('password')
         
         profile_data = validated_data.pop('profile', {})
         instructor_data = validated_data.pop('instructor_profile', {})
