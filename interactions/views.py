@@ -145,29 +145,34 @@ class CourseViewViewSet(viewsets.ModelViewSet):
     serializer_class = CourseViewSerializer
     permission_classes = [permissions.AllowAny]
 
-    def perform_create(self, serializer):
-        course = serializer.validated_data.get('course')
+    def _is_duplicate(self, course):
+        """Return True if this course was already viewed by this user/IP in the last 24 h."""
         user = self.request.user if self.request.user.is_authenticated else None
         ip = self.request.META.get('REMOTE_ADDR')
-        
-        # Deduplication logic
         cutoff = timezone.now() - timedelta(hours=24)
-        recent = CourseView.objects.filter(course=course, created_at__gte=cutoff)
+        qs = CourseView.objects.filter(course=course, created_at__gte=cutoff)
         if user:
-            recent = recent.filter(user=user)
+            return qs.filter(user=user).exists()
         elif ip:
-            recent = recent.filter(ip_address=ip, user__isnull=True)
-        else:
-            recent = recent.none()
+            return qs.filter(ip_address=ip, user__isnull=True).exists()
+        return False
 
-        if not recent.exists():
-            serializer.save(user=user, ip_address=ip)
-            # Update views count cache on course model
-            course.views_count += 1
-            course.save(update_fields=['views_count'])
-        else:
-            # Still return 201 but don't save new view or increment count
-            pass
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        course = serializer.validated_data.get('course')
+
+        if self._is_duplicate(course):
+            # View already counted — acknowledge without creating a duplicate record
+            return Response({'detail': 'View already recorded.'}, status=status.HTTP_200_OK)
+
+        user = request.user if request.user.is_authenticated else None
+        ip = request.META.get('REMOTE_ADDR')
+        serializer.save(user=user, ip_address=ip)
+        course.views_count += 1
+        course.save(update_fields=['views_count'])
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()

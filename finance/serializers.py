@@ -8,7 +8,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         read_only_fields = ('reference_id',)
 
 class WalletSerializer(serializers.ModelSerializer):
-    transactions = TransactionSerializer(many=True, read_only=True)
+    transactions = TransactionSerializer(many=True, read_only=True, source='transaction_flow')
 
     class Meta:
         model = Wallet

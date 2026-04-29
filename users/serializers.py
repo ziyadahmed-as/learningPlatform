@@ -264,17 +264,17 @@ class AdminUserSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
     
-    bio = serializers.SerializerMethodField()
+    bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     profile_picture = serializers.SerializerMethodField()
-    expertise = serializers.SerializerMethodField()
-    education_level = serializers.SerializerMethodField()
-    years_of_experience = serializers.SerializerMethodField()
+    expertise = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    education_level = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    years_of_experience = serializers.IntegerField(required=False, allow_null=True)
     cv_file = serializers.SerializerMethodField()
-    website = serializers.SerializerMethodField()
-    portfolio = serializers.SerializerMethodField()
-    proposed_courses = serializers.SerializerMethodField()
-    is_approved_instructor = serializers.SerializerMethodField()
-    points = serializers.SerializerMethodField()
+    website = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    portfolio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    proposed_courses = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    is_approved_instructor = serializers.BooleanField(required=False, allow_null=True)
+    points = serializers.IntegerField(required=False, allow_null=True)
     
     enrolled_courses = serializers.SerializerMethodField()
     taught_courses = serializers.SerializerMethodField()
@@ -306,76 +306,6 @@ class AdminUserSerializer(serializers.ModelSerializer):
         except Exception:
             return []
 
-    def get_bio(self, obj):
-        try:
-            return obj.profile.bio or ""
-        except Exception:
-            return ""
-
-    def get_profile_picture(self, obj):
-        try:
-            if obj.profile.profile_picture:
-                return obj.profile.profile_picture.url
-            return None
-        except Exception:
-            return None
-
-    def get_expertise(self, obj):
-        try:
-            return obj.instructor_profile.expertise or ""
-        except Exception:
-            return ""
-
-    def get_education_level(self, obj):
-        try:
-            return obj.instructor_profile.education_level or ""
-        except Exception:
-            return ""
-
-    def get_years_of_experience(self, obj):
-        try:
-            return obj.instructor_profile.years_of_experience
-        except Exception:
-            return 0
-
-    def get_cv_file(self, obj):
-        try:
-            if obj.instructor_profile.cv_file:
-                return obj.instructor_profile.cv_file.url
-            return None
-        except Exception:
-            return None
-
-    def get_website(self, obj):
-        try:
-            return obj.instructor_profile.website or ""
-        except Exception:
-            return ""
-
-    def get_portfolio(self, obj):
-        try:
-            return obj.instructor_profile.portfolio or ""
-        except Exception:
-            return ""
-
-    def get_proposed_courses(self, obj):
-        try:
-            return obj.instructor_profile.proposed_courses or ""
-        except Exception:
-            return ""
-
-    def get_is_approved_instructor(self, obj):
-        try:
-            return obj.instructor_profile.is_approved_instructor
-        except Exception:
-            return False
-
-    def get_points(self, obj):
-        try:
-            return obj.student_profile.points
-        except Exception:
-            return 0
-
     def get_profile_picture(self, obj):
         try:
             pic = obj.profile.profile_picture
@@ -388,24 +318,6 @@ class AdminUserSerializer(serializers.ModelSerializer):
         except Exception:
             return None
 
-    def get_expertise(self, obj):
-        try:
-            return obj.instructor_profile.expertise or ""
-        except Exception:
-            return ""
-
-    def get_education_level(self, obj):
-        try:
-            return obj.instructor_profile.education_level or ""
-        except Exception:
-            return ""
-
-    def get_years_of_experience(self, obj):
-        try:
-            return obj.instructor_profile.years_of_experience
-        except Exception:
-            return 0
-
     def get_cv_file(self, obj):
         try:
             cv = obj.instructor_profile.cv_file
@@ -417,36 +329,6 @@ class AdminUserSerializer(serializers.ModelSerializer):
             return None
         except Exception:
             return None
-
-    def get_website(self, obj):
-        try:
-            return obj.instructor_profile.website or ""
-        except Exception:
-            return ""
-
-    def get_portfolio(self, obj):
-        try:
-            return obj.instructor_profile.portfolio or ""
-        except Exception:
-            return ""
-
-    def get_proposed_courses(self, obj):
-        try:
-            return obj.instructor_profile.proposed_courses or ""
-        except Exception:
-            return ""
-
-    def get_is_approved_instructor(self, obj):
-        try:
-            return obj.instructor_profile.is_approved_instructor
-        except Exception:
-            return False
-
-    def get_points(self, obj):
-        try:
-            return obj.student_profile.points
-        except Exception:
-            return 0
 
     def validate_username(self, value):
         instance = self.instance  # None on create, User obj on update

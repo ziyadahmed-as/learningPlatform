@@ -130,6 +130,10 @@ class AdminStatsView(APIView):
         cache_key = 'admin_dashboard_stats'
         cached_data = cache.get(cache_key)
         if cached_data:
+            # Rebuild absolute cv_file URLs from cached relative paths at response time
+            for p in cached_data.get('pending_instructors', []):
+                if p.get('cv_file') and not p['cv_file'].startswith('http'):
+                    p['cv_file'] = request.build_absolute_uri(p['cv_file'])
             return Response(cached_data)
 
         import calendar
@@ -199,11 +203,17 @@ class AdminStatsView(APIView):
                 'instructor_type': p.instructor_type,
                 'website': p.website,
                 'portfolio': p.portfolio,
-                'cv_file': request.build_absolute_uri(p.cv_file.url) if p.cv_file else None,
+                # Store relative path in cache; absolute URI is resolved at response time
+                'cv_file': p.cv_file.url if p.cv_file else None,
                 'date_joined': p.user.date_joined.strftime('%b %d, %Y') if p.user.date_joined else ''
             }
             for p in pending_apps_qs
         ]
+
+        # Resolve absolute URIs before returning (outside the cache block)
+        for p in pending_instructors:
+            if p.get('cv_file'):
+                p['cv_file'] = request.build_absolute_uri(p['cv_file'])
 
         # ── Recent payments (ledger) ─────────────────────────────────────────
         recent_payments_qs = Payment.objects.filter(is_successful=True).select_related('enrollment__student', 'enrollment__course').order_by('-created_at')[:10]

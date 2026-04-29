@@ -202,12 +202,15 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def instructor_analytics(self, request):
         """Tier-1 Time-series Analytics for individual faculty nodes."""
+        user = request.user
+        if user.role not in ['INSTRUCTOR', 'ADMIN', 'SUPER_ADMIN'] and not user.is_superuser:
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+
         from django.utils import timezone
         from datetime import timedelta
         import calendar
         from finance.models import Payment
-        
-        user = request.user
+
         courses = Course.objects.filter(instructor=user)
         now = timezone.now()
         

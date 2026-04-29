@@ -13,6 +13,16 @@ import decimal
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+
+class IsAdminRole(permissions.BasePermission):
+    """Only allow ADMIN / SUPER_ADMIN role (does NOT rely on is_staff)."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            (request.user.role in ['ADMIN', 'SUPER_ADMIN'] or request.user.is_superuser)
+        )
+
 class WalletViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Wallet.objects.all()
     serializer_class = WalletSerializer
@@ -42,7 +52,7 @@ class WithdrawalRequestViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(instructor=self.request.user)
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminRole])
     def approve(self, request, pk=None):
         withdrawal = self.get_object()
         if withdrawal.status != 'PENDING':
@@ -139,8 +149,12 @@ def stripe_webhook(request):
                 wallet.total_earned += earnings
                 wallet.save()
 
-                instructor.student_profile.points += 50
-                instructor.student_profile.save(update_fields=['points'])
+                # Award 50 points to the *student* who made the purchase
+                try:
+                    enrollment.student.student_profile.points += 50
+                    enrollment.student.student_profile.save(update_fields=['points'])
+                except Exception:
+                    pass  # Don't let missing student_profile block the payment flow
 
                 Transaction.objects.create(
                     wallet=wallet, amount=earnings, 
