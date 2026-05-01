@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Category, Course, Chapter, Lesson, ContentBlock, LiveStream, LiveSession
 from interactions.models import Enrollment, LessonProgress
+from interactions.serializers import ReviewSerializer
 
 class CategorySerializer(serializers.ModelSerializer):
     node_count = serializers.IntegerField(source='nodes.count', read_only=True)
@@ -47,6 +48,7 @@ class CourseSerializer(serializers.ModelSerializer):
     enrollment_count = serializers.SerializerMethodField()
     completion_percentage = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
+    reviews = ReviewSerializer(source='node_reviews', many=True, read_only=True)
 
     class Meta:
         model = Course
@@ -56,7 +58,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'instructor', 'instructor_name', 'category', 'category_name', 'category_slug',
             'created_at', 'updated_at', 'is_published', 'is_approved', 'is_submitted',
             'views_count', 'has_certificate', 'chapters', 'is_enrolled', 'rating',
-            'enrollment_count', 'completion_percentage',
+            'enrollment_count', 'completion_percentage', 'reviews'
         ]
         read_only_fields = ['is_approved', 'views_count', 'slug']
         extra_kwargs = {

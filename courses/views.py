@@ -172,6 +172,34 @@ class CourseViewSet(viewsets.ModelViewSet):
         
         return Response({'curriculum': curriculum})
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def enroll(self, request, pk=None):
+        from interactions.models import Enrollment
+        from finance.models import Payment
+        
+        course = self.get_object()
+        user = request.user
+        
+        # Check if already enrolled
+        enrollment, created = Enrollment.objects.get_or_create(student=user, course=course)
+        
+        # Free courses
+        if course.price == 0:
+            enrollment.is_paid = True
+            enrollment.save()
+            return Response({'detail': 'Enrolled successfully.', 'payment_required': False})
+            
+        # Paid courses
+        if not enrollment.is_paid:
+            payment, _ = Payment.objects.get_or_create(enrollment=enrollment, defaults={'amount': course.price})
+            return Response({
+                'detail': 'Payment required.', 
+                'payment_required': True,
+                'payment_id': payment.id
+            })
+            
+        return Response({'detail': 'Already enrolled and paid.', 'payment_required': False})
+
     @action(detail=False, methods=['get'])
     def instructor_stats(self, request):
         user = request.user
