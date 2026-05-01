@@ -81,16 +81,21 @@ class CourseSerializer(serializers.ModelSerializer):
         return obj.enrollments.count()
 
     def get_completion_percentage(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return 0
+            
         total_lessons = Lesson.objects.filter(chapter__course=obj).count()
         if total_lessons == 0:
             return 0
-        enrollment_count = obj.enrollments.count()
-        if enrollment_count == 0:
-            return 0
+            
         completed = LessonProgress.objects.filter(
-            lesson__chapter__course=obj, is_completed=True
+            student=request.user,
+            lesson__chapter__course=obj, 
+            is_completed=True
         ).count()
-        return round((completed / (enrollment_count * total_lessons)) * 100, 1)
+        
+        return round((completed / total_lessons) * 100, 1)
 
 class LiveSessionSerializer(serializers.ModelSerializer):
     content_blocks = ContentBlockSerializer(many=True, read_only=True)
