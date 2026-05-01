@@ -104,8 +104,8 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
                     },
                 ],
                 mode='payment',
-                success_url=settings.FRONTEND_URL + '?success=true',
-                cancel_url=settings.FRONTEND_URL + '?canceled=true',
+                success_url=settings.FRONTEND_URL + f'/payment/result?status=success&course_id={enrollment.course.id}',
+                cancel_url=settings.FRONTEND_URL + f'/payment/result?status=canceled&course_id={enrollment.course.id}',
                 client_reference_id=str(payment.id),
             )
             payment.checkout_session_id = checkout_session.id
