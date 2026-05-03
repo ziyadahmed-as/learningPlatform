@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'courses.apps.CoursesConfig',
     'ai.apps.AiConfig',
+    'gdstorage',
 ]
 
 MIDDLEWARE = [
@@ -208,3 +209,7 @@ if not DEBUG:
 # Media Files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Google Drive Storage Configuration
+GOOGLE_DRIVE_STORAGE_JSON_KEY_FILE = os.getenv('GOOGLE_DRIVE_STORAGE_JSON_KEY_FILE', None)
+GOOGLE_DRIVE_STORAGE_MEDIA_ROOT = os.getenv('GOOGLE_DRIVE_STORAGE_MEDIA_ROOT', 'DjangoMedia')

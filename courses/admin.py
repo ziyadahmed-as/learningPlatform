@@ -20,7 +20,7 @@ class ChapterAdmin(admin.ModelAdmin):
 
 @admin.register(Lesson)
 class LessonAdmin(admin.ModelAdmin):
-    list_display = ('title', 'chapter', 'order', 'is_preview')
+    list_display = ('title', 'chapter', 'order', 'is_preview', 'video_file', 'video_url')
     list_filter = ('chapter__course', 'chapter')
 
 @admin.register(ContentBlock)

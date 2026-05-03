@@ -60,6 +60,11 @@ class Chapter(BaseModel):
     def __str__(self):
         return f'{self.course.title} - {self.title}'
 
+from gdstorage.storage import GoogleDriveStorage
+
+# Initialize Google Drive Storage
+gd_storage = GoogleDriveStorage()
+
 class Lesson(BaseModel):
     """
     Individual knowledge artifact within a module hub.
@@ -68,6 +73,10 @@ class Lesson(BaseModel):
     chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name='lessons')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    
+    # Video fields
+    video_file = models.FileField(upload_to='lessons/videos/', storage=gd_storage, blank=True, null=True)
+    video_url = models.URLField(max_length=500, blank=True, null=True, help_text="Fallback or external video link (e.g. YouTube/Vimeo)")
     
     # Video duration
     duration = models.PositiveIntegerField(default=0)  # in seconds
