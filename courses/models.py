@@ -60,10 +60,11 @@ class Chapter(BaseModel):
     def __str__(self):
         return f'{self.course.title} - {self.title}'
 
-from gdstorage.storage import GoogleDriveStorage
-
-# Initialize Google Drive Storage
-gd_storage = GoogleDriveStorage()
+try:
+    from gdstorage.storage import GoogleDriveStorage
+    gd_storage = GoogleDriveStorage()
+except Exception:
+    gd_storage = None
 
 class Lesson(BaseModel):
     """
