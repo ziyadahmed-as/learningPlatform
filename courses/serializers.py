@@ -23,7 +23,8 @@ class LessonSerializer(serializers.ModelSerializer):
         model = Lesson
         fields = [
             'id', 'chapter', 'title', 'description', 'order', 
-            'content_blocks', 'is_completed', 'duration', 'is_preview'
+            'content_blocks', 'is_completed', 'duration', 'is_preview',
+            'video_file', 'video_url'
         ]
 
     def get_is_completed(self, obj):
