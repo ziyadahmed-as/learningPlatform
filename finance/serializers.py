@@ -16,9 +16,11 @@ class WalletSerializer(serializers.ModelSerializer):
         read_only_fields = ('user', 'balance', 'total_earned')
 
 class WithdrawalRequestSerializer(serializers.ModelSerializer):
+    instructor_name = serializers.ReadOnlyField(source='instructor.username')
+
     class Meta:
         model = WithdrawalRequest
-        fields = ['id', 'instructor', 'amount', 'status', 'account_details', 'created_at', 'updated_at']
+        fields = ['id', 'instructor', 'instructor_name', 'amount', 'status', 'account_details', 'created_at', 'updated_at']
         read_only_fields = ('instructor', 'status')
 
 class PaymentSerializer(serializers.ModelSerializer):

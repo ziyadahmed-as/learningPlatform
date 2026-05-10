@@ -164,9 +164,10 @@ class AdminStatsView(APIView):
             {
                 'id': c.id,
                 'title': c.title,
-                'instructor': c.instructor.username,
+                'instructor_name': c.instructor.username,
                 'category': c.category.name if c.category else 'Uncategorized',
                 'price': float(c.price),
+                'thumbnail': request.build_absolute_uri(c.thumbnail.url) if c.thumbnail else None,
                 'submitted_at': c.updated_at.strftime('%b %d, %Y')
             }
             for c in pending_courses_qs
