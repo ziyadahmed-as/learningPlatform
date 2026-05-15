@@ -14,7 +14,7 @@ from ai.services import AIService
 import decimal
 
 def is_admin(user):
-    return user.is_authenticated and (user.role == 'ADMIN' or user.is_superuser)
+    return user.is_authenticated and (user.role in ['ADMIN', 'SUPER_ADMIN'] or user.is_superuser)
 
 class IsAdminOnly(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -28,7 +28,7 @@ class IsAdminOrInstructorOrReadOnly(permissions.BasePermission):
             return True
         if not request.user.is_authenticated:
             return False
-        if request.user.is_superuser or request.user.role == 'ADMIN':
+        if is_admin(request.user):
             return True
         if request.user.role == 'INSTRUCTOR':
             # Check if instructor is approved by admin
@@ -92,8 +92,12 @@ class CourseViewSet(viewsets.ModelViewSet):
         if is_mine_filter:
             return qs.filter(instructor=user)
 
-        if is_admin(user) or user.role == 'INSTRUCTOR':
+        if is_admin(user):
             return qs
+            
+        if user.role == 'INSTRUCTOR':
+            # Instructors see their own courses (any status) + others' approved courses
+            return qs.filter(models.Q(instructor=user) | models.Q(is_approved=True))
             
         return qs.filter(is_approved=True)
 
