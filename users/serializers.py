@@ -127,9 +127,10 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'role', 'is_superuser', 'bio', 'profile_picture',
             'first_name', 'last_name', 'expertise', 'education_level',
             'years_of_experience', 'website', 'portfolio',
-            'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 'signal_strength', 'peer_ranking'
+            'proposed_courses', 'cv_file', 'is_approved_instructor', 'points', 
+            'signal_strength', 'peer_ranking', 'last_login', 'date_joined'
         )
-        read_only_fields = ('id', 'role', 'is_superuser', 'is_approved_instructor', 'signal_strength', 'peer_ranking')
+        read_only_fields = ('id', 'role', 'is_superuser', 'is_approved_instructor', 'signal_strength', 'peer_ranking', 'last_login', 'date_joined')
 
     def update(self, instance, validated_data):
         profile_data = validated_data.pop('profile', {})
