@@ -14,8 +14,8 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
 
-from .serializers import RegisterSerializer, UserSerializer, AdminUserSerializer, MyTokenObtainPairSerializer
-from .models import InstructorProfile
+from users.serializers import RegisterSerializer, UserSerializer, AdminUserSerializer, MyTokenObtainPairSerializer
+from users.models import InstructorProfile
 from courses.models import Course, Category
 from interactions.models import Enrollment
 from finance.models import Payment

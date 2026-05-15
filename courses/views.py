@@ -1,15 +1,16 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import (
+from courses.models import (
     Category, Course, Chapter, Lesson, ContentBlock, LiveStream, LiveSession
 )
 from interactions.models import Enrollment, LessonProgress, LiveStreamEnrollment, InstructorReview
-from .serializers import (
+from courses.serializers import (
     CategorySerializer, CourseSerializer, ChapterSerializer,
     LessonSerializer, ContentBlockSerializer, LiveStreamSerializer, LiveSessionSerializer
 )
-from django.db.models import Sum
+from django.db import models
+from django.db.models import Sum, Q
 from ai.services import AIService
 import decimal
 
@@ -74,6 +75,26 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
     permission_classes = [IsAdminOrInstructorOrReadOnly]
+    lookup_field = 'slug'
+
+    def get_object(self):
+        """
+        Support both ID and Slug lookups for maximum flexibility.
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        lookup_value = self.kwargs.get(self.lookup_field)
+
+        # Try slug lookup first (default)
+        try:
+            return super().get_object()
+        except:
+            # Fallback to ID lookup if numeric
+            if lookup_value and lookup_value.isdigit():
+                obj = queryset.filter(pk=lookup_value).first()
+                if obj:
+                    self.check_object_permissions(self.request, obj)
+                    return obj
+            raise
 
     def get_queryset(self):
         user = self.request.user
@@ -97,7 +118,7 @@ class CourseViewSet(viewsets.ModelViewSet):
             
         if user.role == 'INSTRUCTOR':
             # Instructors see their own courses (any status) + others' approved courses
-            return qs.filter(models.Q(instructor=user) | models.Q(is_approved=True))
+            return qs.filter(Q(instructor=user) | Q(is_approved=True))
             
         return qs.filter(is_approved=True)
 

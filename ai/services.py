@@ -95,30 +95,37 @@ class AIService:
             rag_chain = create_retrieval_chain(vectorstore.as_retriever(search_kwargs={"k": 6}), question_answer_chain)
             return rag_chain.invoke({"input": query})['answer']
         except Exception as e:
-            print(f"Platform chat fallback: {e}")
-            llm = cls._get_llm()
-            return llm.invoke([SystemMessage(content="You are the Fatra Academy Assistant."), HumanMessage(content=query)]).content
+            print(f"Platform chat fallback triggered (Ollama might be offline): {e}")
+            try:
+                llm = cls._get_llm()
+                return llm.invoke([SystemMessage(content="You are the Fatra Academy Assistant."), HumanMessage(content=query)]).content
+            except Exception:
+                return "I'm currently undergoing maintenance and can't access my full knowledge base. Please check back shortly or contact our support team!"
 
     @classmethod
     def get_learning_assistant_response(cls, query, context="", course_id=None):
         """Contextual learning assistant for students enrolled in courses."""
-        llm = cls._get_llm(0.7)
-        if course_id:
-            try:
-                vectorstore = cls._get_vectorstore(f"course_{course_id}")
-                system_prompt = "You are a Learning Assistant. Use context:\n{context}"
-                prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])
-                question_answer_chain = create_stuff_documents_chain(llm, prompt)
-                rag_chain = create_retrieval_chain(vectorstore.as_retriever(), question_answer_chain)
-                
-                input_data = f"Context: {context}\n\nQuestion: {query}" if context else query
-                return rag_chain.invoke({"input": input_data})['answer']
-            except Exception as e:
-                print(f"Course RAG fallback: {e}")
-        
-        # Zero-shot fallback
-        msg = f"Context: '{context}', Question: '{query}'" if context else query
-        return llm.invoke([SystemMessage(content="You are a tutor."), HumanMessage(content=msg)]).content
+        try:
+            llm = cls._get_llm(0.7)
+            if course_id:
+                try:
+                    vectorstore = cls._get_vectorstore(f"course_{course_id}")
+                    system_prompt = "You are a Learning Assistant. Use context:\n{context}"
+                    prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])
+                    question_answer_chain = create_stuff_documents_chain(llm, prompt)
+                    rag_chain = create_retrieval_chain(vectorstore.as_retriever(), question_answer_chain)
+                    
+                    input_data = f"Context: {context}\n\nQuestion: {query}" if context else query
+                    return rag_chain.invoke({"input": input_data})['answer']
+                except Exception as e:
+                    print(f"Course RAG fallback: {e}")
+            
+            # Zero-shot fallback
+            msg = f"Context: '{context}', Question: '{query}'" if context else query
+            return llm.invoke([SystemMessage(content="You are a tutor."), HumanMessage(content=msg)]).content
+        except Exception as e:
+            print(f"Learning assistant critical failure (Ollama offline): {e}")
+            return "I'm currently resting my circuits. Please try again in a few minutes when I'm back online!"
 
     @classmethod
     def generate_course_description(cls, title, audience=None, keywords=None):
