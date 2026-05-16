@@ -40,6 +40,44 @@ class ChapterSerializer(serializers.ModelSerializer):
         model = Chapter
         fields = ['id', 'course', 'title', 'order', 'lessons']
 
+class LiveSessionSerializer(serializers.ModelSerializer):
+    content_blocks = ContentBlockSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = LiveSession
+        fields = ['id', 'live_stream', 'title', 'description', 'scheduled_at', 'meeting_link', 'content_blocks']
+
+class LiveStreamSerializer(serializers.ModelSerializer):
+    instructor_name = serializers.ReadOnlyField(source='instructor.username')
+    course_name = serializers.ReadOnlyField(source='course.title')
+    live_sessions = LiveSessionSerializer(many=True, read_only=True)
+    is_enrolled = serializers.SerializerMethodField()
+    enrollment_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LiveStream
+        fields = [
+            'id', 'course', 'course_name', 'instructor', 'instructor_name',
+            'title', 'description', 'group_type', 'max_students',
+            'scheduled_at', 'meeting_link', 'price', 'is_active', 'created_at',
+            'live_sessions', 'is_enrolled', 'enrollment_count'
+        ]
+        read_only_fields = ['max_students', 'created_at']
+        extra_kwargs = {
+            'instructor': {'required': False}
+        }
+
+    def get_is_enrolled(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from interactions.models import LiveStreamEnrollment
+            return LiveStreamEnrollment.objects.filter(student=request.user, live_stream=obj).exists()
+        return False
+
+    def get_enrollment_count(self, obj):
+        from interactions.models import LiveStreamEnrollment
+        return LiveStreamEnrollment.objects.filter(live_stream=obj).count()
+
 class CourseSerializer(serializers.ModelSerializer):
     chapters = ChapterSerializer(many=True, read_only=True)
     live_streams = LiveStreamSerializer(many=True, read_only=True)
@@ -98,41 +136,3 @@ class CourseSerializer(serializers.ModelSerializer):
         ).count()
         
         return round((completed / total_lessons) * 100, 1)
-
-class LiveSessionSerializer(serializers.ModelSerializer):
-    content_blocks = ContentBlockSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = LiveSession
-        fields = ['id', 'live_stream', 'title', 'description', 'scheduled_at', 'meeting_link', 'content_blocks']
-
-class LiveStreamSerializer(serializers.ModelSerializer):
-    instructor_name = serializers.ReadOnlyField(source='instructor.username')
-    course_name = serializers.ReadOnlyField(source='course.title')
-    live_sessions = LiveSessionSerializer(many=True, read_only=True)
-    is_enrolled = serializers.SerializerMethodField()
-    enrollment_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = LiveStream
-        fields = [
-            'id', 'course', 'course_name', 'instructor', 'instructor_name',
-            'title', 'description', 'group_type', 'max_students',
-            'scheduled_at', 'meeting_link', 'price', 'is_active', 'created_at',
-            'live_sessions', 'is_enrolled', 'enrollment_count'
-        ]
-        read_only_fields = ['max_students', 'created_at']
-        extra_kwargs = {
-            'instructor': {'required': False}
-        }
-
-    def get_is_enrolled(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            from interactions.models import LiveStreamEnrollment
-            return LiveStreamEnrollment.objects.filter(student=request.user, live_stream=obj).exists()
-        return False
-
-    def get_enrollment_count(self, obj):
-        from interactions.models import LiveStreamEnrollment
-        return LiveStreamEnrollment.objects.filter(live_stream=obj).count()
