@@ -42,6 +42,7 @@ class ChapterSerializer(serializers.ModelSerializer):
 
 class CourseSerializer(serializers.ModelSerializer):
     chapters = ChapterSerializer(many=True, read_only=True)
+    live_streams = LiveStreamSerializer(many=True, read_only=True)
     instructor_name = serializers.ReadOnlyField(source='instructor.username')
     category_name = serializers.ReadOnlyField(source='category.name')
     category_slug = serializers.ReadOnlyField(source='category.slug')
@@ -58,7 +59,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'thumbnail', 'promo_video',
             'instructor', 'instructor_name', 'category', 'category_name', 'category_slug',
             'created_at', 'updated_at', 'is_published', 'is_approved', 'is_submitted',
-            'views_count', 'has_certificate', 'chapters', 'is_enrolled', 'rating',
+            'views_count', 'has_certificate', 'chapters', 'live_streams', 'is_enrolled', 'rating',
             'enrollment_count', 'completion_percentage', 'reviews'
         ]
         read_only_fields = ['is_approved', 'views_count', 'slug']
